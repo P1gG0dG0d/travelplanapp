@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.haoqi.travel.ui.theme.Motion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -135,7 +136,7 @@ fun rememberPressScale(): Pair<MutableInteractionSource, Modifier> {
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = Motion.press,
         label = "pressScale",
     )
     return source to Modifier.graphicsLayer {
@@ -150,13 +151,42 @@ fun rememberPressScaleFor(source: InteractionSource): Modifier {
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = Motion.press,
         label = "pressScale",
     )
     return Modifier.graphicsLayer {
         scaleX = scale
         scaleY = scale
     }
+}
+
+/**
+ * 按压缩放 + 点击二合一：点下去缩到 0.97，松手触发 onClick。
+ * 给自绘的可点元素（导航项、可折叠卡片头等）用，代替裸 clickable。
+ */
+@Composable
+fun Modifier.pressScaleClickable(
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+): Modifier {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = Motion.press,
+        label = "pressScale",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            interactionSource = source,
+            indication = null,
+            enabled = enabled,
+            onClick = onClick,
+        )
 }
 
 /**

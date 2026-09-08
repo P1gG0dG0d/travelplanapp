@@ -1,6 +1,7 @@
 package com.haoqi.travel.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -46,6 +47,7 @@ import com.haoqi.travel.data.local.entity.TripEntity
 import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.ScreenTitle
 import com.haoqi.travel.ui.components.SectionLabel
+import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.trips.TripViewModel
 
 @Composable
@@ -110,12 +112,13 @@ fun ItineraryScreen(vm: TripViewModel) {
             }
         }
 
+        Crossfade(targetState = selectedDay, animationSpec = Motion.fadeIn, label = "daySwitch") { day ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            val dayItems = plan.filter { it.dayIndex == selectedDay }
+            val dayItems = plan.filter { it.dayIndex == day }
             if (dayItems.isEmpty()) {
                 item(key = "empty-day") {
                     Text(
@@ -181,6 +184,7 @@ fun ItineraryScreen(vm: TripViewModel) {
                     )
                 }
             }
+        }
         }
     }
 

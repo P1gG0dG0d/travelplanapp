@@ -1,17 +1,24 @@
 package com.haoqi.travel.ui
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ConfirmationNumber
@@ -25,34 +32,39 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haoqi.travel.data.repository.TravelRepository
+import com.haoqi.travel.ui.components.pressScaleClickable
 import com.haoqi.travel.ui.profile.AiPlanScreen
 import com.haoqi.travel.ui.screens.ItineraryScreen
 import com.haoqi.travel.ui.screens.MapScreen
 import com.haoqi.travel.ui.screens.MoreScreen
 import com.haoqi.travel.ui.screens.TicketsScreen
+import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.trips.TripViewModel
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
-/**
- * 底部导航：5 个一级入口保持不变。
- * 图标：未选中用线性（Outlined）、选中用实心（Filled），选中瞬间有弹性缩放。
- */
+/** 底部导航：5 个一级入口。图标未选中线性、选中实心，选中时有颜色渐变 + 弹性放大。 */
 enum class AppTab(val label: String, val icon: ImageVector, val activeIcon: ImageVector) {
     MAP("地图", Icons.Outlined.Map, Icons.Filled.Map),
     ITINERARY("行程", Icons.Outlined.DateRange, Icons.Filled.DateRange),
@@ -64,72 +76,156 @@ enum class AppTab(val label: String, val icon: ImageVector, val activeIcon: Imag
 @Composable
 fun HaoQiTravelApp(repository: TravelRepository) {
     val tripViewModel: TripViewModel = viewModel(factory = TripViewModel.Factory(repository))
-    var selected by remember { mutableStateOf(AppTab.MAP) }
+
+    // 手写双图层横滑：current 是垫在底下的「原页」，pending 是从旁边滑进来的「新页」。
+    var current by remember { mutableStateOf(AppTab.MAP) }
+    var pending by remember { mutableStateOf<AppTab?>(null) }
+    val curOffset = remember { Animatable(0f) }
+    val pendOffset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    fun switchTo(next: AppTab) {
+        if (next == current || pending != null) return
+        val forward = next.ordinal > current.ordinal
+        scope.launch {
+            if (next == AppTab.MAP) {
+                // 去地图：原页不透明滑走，露出底下的地图
+                curOffset.snapTo(0f)
+                curOffset.animateTo(if (forward) -1f else 1f, Motion.pageSlideOut)
+                current = AppTab.MAP
+                curOffset.snapTo(0f)
+            } else {
+                // 去别的页：新页从对应方向滑入，盖在原页（或地图）之上
+                pendOffset.snapTo(if (forward) 1f else -1f)
+                pending = next
+                pendOffset.animateTo(0f, Motion.pageSlideIn)
+                current = next
+                pending = null
+                pendOffset.snapTo(0f)
+            }
+        }
+    }
 
     Scaffold(
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp,
-            ) {
-                AppTab.entries.forEach { tab ->
-                    val selectedNow = selected == tab
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (selectedNow) 1.12f else 1f,
-                        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-                        label = "tabIconScale",
-                    )
-                    NavigationBarItem(
-                        selected = selectedNow,
-                        onClick = { selected = tab },
-                        icon = {
-                            Icon(
-                                if (selectedNow) tab.activeIcon else tab.icon,
-                                contentDescription = tab.label,
-                                modifier = Modifier.graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
-                                },
-                            )
-                        },
-                        label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
+        bottomBar = { SlidingNavBar(selected = current, onSelect = ::switchTo) }
+    ) { innerPadding ->
+        BoxWithConstraints(Modifier.fillMaxSize().padding(innerPadding)) {
+            val density = LocalDensity.current
+            val widthPx = with(density) { maxWidth.toPx() }
+
+            Box(Modifier.fillMaxSize()) {
+                // 地图常驻底层：高德 MapView 销毁再重建会原生崩溃，所以永不销毁
+                MapScreen(tripViewModel, mapActive = current == AppTab.MAP)
+
+                // 原页（垫底，不透明）
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset((curOffset.value * widthPx).roundToInt(), 0) },
+                ) {
+                    TabContent(current, tripViewModel, onGoToItinerary = { switchTo(AppTab.ITINERARY) })
+                }
+
+                // 滑入中的新页（叠在原页上面）
+                pending?.let { tab ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset((pendOffset.value * widthPx).roundToInt(), 0) },
+                    ) {
+                        TabContent(tab, tripViewModel, onGoToItinerary = { switchTo(AppTab.ITINERARY) })
+                    }
                 }
             }
         }
-    ) { innerPadding ->
-        Box(Modifier.fillMaxSize().padding(innerPadding)) {
-            // 地图常驻在底层：高德 MapView 一旦销毁再重建，在部分机型上会触发原生崩溃。
-            // 因此切到其它标签时不再移除地图，而是用不透明的覆盖层盖住它，避免反复销毁/重建。
-            // 覆盖层不加 pointerInput 拦截，避免拖慢其它标签页的滚动；改为在地图层禁用手势。
-            MapScreen(tripViewModel, mapActive = selected == AppTab.MAP)
+    }
+}
 
-            // 页面切换：淡入 + 轻微上滑 + 微缩放，进 220ms / 出 120ms，快而不闹
-            AnimatedContent(
-                targetState = selected,
-                transitionSpec = {
-                    (fadeIn(tween(220)) +
-                        slideInVertically(tween(220)) { it / 24 } +
-                        scaleIn(initialScale = 0.985f, animationSpec = tween(220)))
-                        .togetherWith(fadeOut(tween(120)))
-                },
-                label = "tabContent",
-            ) { tab ->
-                when (tab) {
-                    AppTab.MAP -> Unit
-                    AppTab.ITINERARY -> TabOverlay { ItineraryScreen(tripViewModel) }
-                    AppTab.TICKETS -> TabOverlay { TicketsScreen(tripViewModel) }
-                    AppTab.PLAN -> TabOverlay {
-                        AiPlanScreen(tripViewModel, onGoToItinerary = { selected = AppTab.ITINERARY })
+@Composable
+private fun TabContent(tab: AppTab, vm: TripViewModel, onGoToItinerary: () -> Unit) {
+    when (tab) {
+        AppTab.MAP -> Box(Modifier.fillMaxSize()) // 透明占位，露出底下的地图
+        AppTab.ITINERARY -> TabOverlay { ItineraryScreen(vm) }
+        AppTab.TICKETS -> TabOverlay { TicketsScreen(vm) }
+        AppTab.PLAN -> TabOverlay { AiPlanScreen(vm, onGoToItinerary) }
+        AppTab.MORE -> TabOverlay { MoreScreen(vm) }
+    }
+}
+
+/** 自定义底部导航：浅青胶囊指示器在 tab 间平滑滑动，图标选中放大 + 颜色渐变 */
+@Composable
+private fun SlidingNavBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
+    val tabs = AppTab.entries
+    val density = LocalDensity.current
+    var barWidth by remember { mutableIntStateOf(0) }
+    val tabWidthPx = if (barWidth > 0) barWidth / tabs.size else 0
+    val x by animateFloatAsState(
+        targetValue = (tabWidthPx * selected.ordinal).toFloat(),
+        animationSpec = Motion.navSlide,
+        label = "navIndicatorX",
+    )
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .navigationBarsPadding(),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .onSizeChanged { barWidth = it.width },
+        ) {
+            Box(
+                Modifier
+                    .offset { IntOffset(x.roundToInt(), 0) }
+                    .fillMaxHeight()
+                    .width(with(density) { tabWidthPx.toDp() })
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                )
+            }
+
+            Row(Modifier.fillMaxSize()) {
+                tabs.forEach { tab ->
+                    val sel = tab == selected
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (sel) 1.12f else 1f,
+                        animationSpec = Motion.navIcon,
+                        label = "navIconScale",
+                    )
+                    val tint by animateColorAsState(
+                        targetValue = if (sel) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = Motion.color,
+                        label = "navTint",
+                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .pressScaleClickable { onSelect(tab) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            if (sel) tab.activeIcon else tab.icon,
+                            contentDescription = tab.label,
+                            tint = tint,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            },
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(tab.label, color = tint, style = MaterialTheme.typography.labelMedium)
                     }
-                    AppTab.MORE -> TabOverlay { MoreScreen(tripViewModel) }
                 }
             }
         }

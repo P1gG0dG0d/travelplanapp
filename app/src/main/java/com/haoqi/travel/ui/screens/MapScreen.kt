@@ -1,5 +1,12 @@
 package com.haoqi.travel.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +47,9 @@ import com.amap.api.maps.model.Text
 import com.amap.api.maps.model.TextOptions
 import com.haoqi.travel.data.remote.GeocodeHelper
 import com.haoqi.travel.data.remote.NavigationHelper
+import com.haoqi.travel.ui.components.ScreenTitle
 import com.haoqi.travel.ui.map.AddPlaceDialog
+import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.map.AmapMapView
 import com.haoqi.travel.ui.trips.TripViewModel
 import kotlinx.coroutines.launch
@@ -113,11 +122,7 @@ fun MapScreen(vm: TripViewModel, mapActive: Boolean) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Text(
-            text = "好奇旅行",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
-        )
+        ScreenTitle("好奇旅行")
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -165,28 +170,40 @@ fun MapScreen(vm: TripViewModel, mapActive: Boolean) {
                 }
             }
 
-            navTarget?.let { (name, pos) ->
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    shadowElevation = 4.dp,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+            AnimatedContent(
+                targetState = navTarget,
+                transitionSpec = {
+                    (fadeIn(Motion.fadeIn) + slideInVertically(Motion.slideEnter) { it })
+                        .togetherWith(fadeOut(Motion.fadeOut) + slideOutVertically(Motion.slideExit) { it })
+                },
+                label = "navCard",
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) { target ->
+                target?.let { (name, pos) ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                        shadowElevation = 2.dp,
                     ) {
-                        Text(
-                            name,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Button(onClick = { NavigationHelper.navigateTo(context, name, pos.latitude, pos.longitude) }) {
-                            Text("导航")
-                        }
-                        IconButton(onClick = { navTarget = null }) {
-                            Icon(Icons.Filled.Close, contentDescription = "关闭")
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                name,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Button(onClick = { NavigationHelper.navigateTo(context, name, pos.latitude, pos.longitude) }) {
+                                Text("导航")
+                            }
+                            IconButton(onClick = { navTarget = null }) {
+                                Icon(Icons.Filled.Close, contentDescription = "关闭")
+                            }
                         }
                     }
                 }

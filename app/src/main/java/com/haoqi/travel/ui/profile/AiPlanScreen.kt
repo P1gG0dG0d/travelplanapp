@@ -2,9 +2,12 @@ package com.haoqi.travel.ui.profile
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +68,7 @@ import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
 import com.haoqi.travel.ui.components.PrimaryButton
 import com.haoqi.travel.ui.components.tapOutsideToDismissKeyboard
+import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.tickets.ticketTypeLabel
 import com.haoqi.travel.ui.trips.AiPlanState
 import com.haoqi.travel.ui.trips.ChatMsg
@@ -367,7 +371,7 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             CurrentPlanCard(plan)
-            plan.messages.forEach { msg -> MessageBubble(msg) }
+            plan.messages.forEach { msg -> AnimatedMessageBubble(msg) }
             if (plan.running || plan.importing) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -538,6 +542,19 @@ private fun CurrentPlanCard(plan: AiPlanState) {
                 }
             }
         }
+    }
+}
+
+/** 消息气泡：新出现时从下淡入 + 轻微上浮 */
+@Composable
+private fun AnimatedMessageBubble(msg: ChatMsg) {
+    val state = remember { MutableTransitionState(false) }
+    LaunchedEffect(Unit) { state.targetState = true }
+    AnimatedVisibility(
+        visibleState = state,
+        enter = fadeIn(Motion.fadeIn) + slideInVertically(Motion.slideEnter) { it / 20 },
+    ) {
+        MessageBubble(msg)
     }
 }
 
