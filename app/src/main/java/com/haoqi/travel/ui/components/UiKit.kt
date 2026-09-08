@@ -3,26 +3,43 @@ package com.haoqi.travel.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * 统一 UI 零件库（UI 美化阶段①建立）：
@@ -139,5 +156,95 @@ fun rememberPressScaleFor(source: InteractionSource): Modifier {
     return Modifier.graphicsLayer {
         scaleX = scale
         scaleY = scale
+    }
+}
+
+/**
+ * 键盘友好输入框：聚焦时（键盘开着）再点它一下会收起键盘、退出输入模式；
+ * 其余行为与 OutlinedTextField 一致。全 App 所有可输入框统一用它。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun KeyboardGuardTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    label: (@Composable () -> Unit)? = null,
+    placeholder: (@Composable () -> Unit)? = null,
+    shape: Shape = OutlinedTextFieldDefaults.shape,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailingIcon: (@Composable () -> Unit)? = null,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val kb = LocalSoftwareKeyboardController.current
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    Box(modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            readOnly = readOnly,
+            singleLine = singleLine,
+            maxLines = maxLines,
+            label = label,
+            placeholder = placeholder,
+            shape = shape,
+            visualTransformation = visualTransformation,
+            trailingIcon = trailingIcon,
+            modifier = Modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(bringIntoViewRequester)
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (it.isFocused) {
+                        // 键盘弹起动画约 250ms：等它把视口压短后再滚到可见；
+                        // 分两次触发，确保最终到位
+                        scope.launch {
+                            delay(300)
+                            bringIntoViewRequester.bringIntoView()
+                            delay(400)
+                            bringIntoViewRequester.bringIntoView()
+                        }
+                    }
+                },
+        )
+        // 聚焦时盖一层透明区域：再点一下 = 收起键盘退出输入
+        if (focused) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        kb?.hide()
+                        focusManager.clearFocus()
+                    },
+            )
+        }
+    }
+}
+
+/**
+ * 给可滚动容器：点空白处（非输入框区域）收起键盘，避免键盘遮挡内容。
+ * 用 clickable 而不是 pointerInput：输入框自己会消费点击，不会误触“点字段反而收键盘”。
+ */
+@Composable
+fun Modifier.tapOutsideToDismissKeyboard(): Modifier {
+    val focusManager = LocalFocusManager.current
+    val kb = LocalSoftwareKeyboardController.current
+    return this.clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+    ) {
+        kb?.hide()
+        focusManager.clearFocus()
     }
 }

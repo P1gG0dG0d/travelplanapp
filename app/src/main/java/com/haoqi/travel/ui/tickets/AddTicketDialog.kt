@@ -4,12 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haoqi.travel.data.local.entity.TicketEntity
 import com.haoqi.travel.data.local.entity.TicketType
+import com.haoqi.travel.ui.components.KeyboardGuardTextField
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -71,7 +72,9 @@ fun AddTicketDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .imePadding()
+                    .verticalScroll(rememberScrollState()),
             ) {
                 if (initial?.isSuggestion == true) {
                     Text(
@@ -89,7 +92,7 @@ fun AddTicketDialog(
                         )
                     }
                 }
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = trainNo,
                     onValueChange = { trainNo = it },
                     label = { Text("车次/航班号（如 G1234）") },
@@ -97,14 +100,14 @@ fun AddTicketDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = from,
                         onValueChange = { from = it },
                         label = { Text("出发站/城市") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = to,
                         onValueChange = { to = it },
                         label = { Text("到达站/城市") },
@@ -113,14 +116,14 @@ fun AddTicketDialog(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = date,
                         onValueChange = { date = it },
                         label = { Text("日期 yyyy-MM-dd") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = time,
                         onValueChange = { time = it },
                         label = { Text("时间 HH:mm") },
@@ -128,7 +131,7 @@ fun AddTicketDialog(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = seat,
                     onValueChange = { seat = it },
                     label = { Text("座位（可选）") },

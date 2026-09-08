@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haoqi.travel.data.local.entity.PlaceType
+import com.haoqi.travel.ui.components.KeyboardGuardTextField
 
 @Composable
 fun AddPlaceDialog(
@@ -46,7 +49,12 @@ fun AddPlaceDialog(
         onDismissRequest = onDismiss,
         title = { Text("添加地点") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .imePadding()
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PlaceType.entries.forEach { t ->
                         FilterChip(
@@ -56,21 +64,21 @@ fun AddPlaceDialog(
                         )
                     }
                 }
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("名称") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = address,
                     onValueChange = { address = it },
                     label = { Text("地址") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("备注（可选）") },
@@ -84,7 +92,7 @@ fun AddPlaceDialog(
                     Text("需要预约（门票 / 订位）")
                 }
                 if (needReservation) {
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = reservationDate,
                         onValueChange = { reservationDate = it },
                         label = { Text("预约日期") },
@@ -92,7 +100,7 @@ fun AddPlaceDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = bookingInfo,
                         onValueChange = { bookingInfo = it },
                         label = { Text("预约/购票方式（可选）") },

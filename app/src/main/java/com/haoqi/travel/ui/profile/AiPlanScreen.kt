@@ -2,14 +2,20 @@ package com.haoqi.travel.ui.profile
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,11 +24,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -45,15 +53,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.importer.MdDocument
 import com.haoqi.travel.data.importer.placeTypeLabel
 import com.haoqi.travel.data.local.entity.ProfileEntity
+import com.haoqi.travel.ui.components.GroupCard
+import com.haoqi.travel.ui.components.KeyboardGuardTextField
+import com.haoqi.travel.ui.components.PrimaryButton
+import com.haoqi.travel.ui.components.tapOutsideToDismissKeyboard
 import com.haoqi.travel.ui.tickets.ticketTypeLabel
 import com.haoqi.travel.ui.trips.AiPlanState
 import com.haoqi.travel.ui.trips.ChatMsg
@@ -92,55 +103,63 @@ fun AiPlanScreen(vm: TripViewModel, onGoToItinerary: () -> Unit) {
 
 // ================= 表单阶段 =================
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewModel, context: Context) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
+            .tapOutsideToDismissKeyboard()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("AI 规划", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "填好旅行时间和每天想去的城市，AI 会结合你的个人偏好，自动生成可直接使用的完整行程。",
+            "AI 规划",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 2.dp),
+        )
+        Text(
+            "填时间和城市，AI 自动生成行程，可改到满意再导入",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 20.dp),
         )
 
         PreferenceCard(profile, vm, context)
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        GroupCard {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("旅行信息", style = MaterialTheme.typography.titleMedium)
-
                 DateField(plan.startDate) { vm.updatePlanForm(startDate = it) }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("天数", modifier = Modifier.padding(end = 16.dp))
-                    IconButton(onClick = { if (plan.days > 1) vm.updatePlanForm(days = plan.days - 1) }) {
-                        Icon(Icons.Filled.Remove, contentDescription = "减少天数")
-                    }
-                    Text("${plan.days}")
-                    IconButton(onClick = { if (plan.days < 15) vm.updatePlanForm(days = plan.days + 1) }) {
-                        Icon(Icons.Filled.Add, contentDescription = "增加天数")
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("天数", style = MaterialTheme.typography.bodyMedium)
+                    IconButton(
+                        onClick = { if (plan.days > 1) vm.updatePlanForm(days = plan.days - 1) },
+                        enabled = plan.days > 1,
+                    ) { Icon(Icons.Filled.Remove, contentDescription = "减少天数") }
+                    Text("${plan.days}", style = MaterialTheme.typography.titleMedium)
+                    IconButton(
+                        onClick = { if (plan.days < 15) vm.updatePlanForm(days = plan.days + 1) },
+                        enabled = plan.days < 15,
+                    ) { Icon(Icons.Filled.Add, contentDescription = "增加天数") }
+                    Text("天", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                OutlinedTextField(
+                KeyboardGuardTextField(
                     value = plan.homeCity,
                     onValueChange = { vm.updatePlanForm(homeCity = it) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("出发地（现在所在地，可留空）") },
+                    label = { Text("出发地") },
+                    placeholder = { Text("如：济南（可留空）") },
                     singleLine = true,
                 )
 
-                Text(
-                    "每天主城市（留空则沿用前一天）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("每天去的城市", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 plan.cities.forEachIndexed { i, city ->
-                    OutlinedTextField(
+                    KeyboardGuardTextField(
                         value = city,
                         onValueChange = { v ->
                             val list = plan.cities.toMutableList()
@@ -148,102 +167,117 @@ private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewMo
                             vm.updatePlanForm(cities = list)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("第 ${i + 1} 天 · 城市（如：济南）") },
+                        label = { Text("第 ${i + 1} 天") },
+                        placeholder = { Text(if (i == 0) "如：济南" else "留空则沿用前一天") },
                         singleLine = true,
                     )
                 }
 
-                Button(
-                    onClick = { vm.generatePlan(context.applicationContext) },
-                    enabled = !plan.running,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (plan.running) "AI 正在规划…" else "AI 生成旅行") }
-
                 if (plan.running) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         Text(
-                            "AI 正在规划，通常 10–60 秒，联网搜索会更久…（可切到其它页面，后台继续生成）",
+                            "AI 正在规划…（可切到其它页面，后台继续）",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 plan.error?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
+
+                PrimaryButton(
+                    text = if (plan.running) "AI 正在规划…" else "AI 生成旅行",
+                    onClick = { vm.generatePlan(context.applicationContext) },
+                    enabled = !plan.running,
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PreferenceCard(profile: ProfileEntity?, vm: TripViewModel, context: Context) {
     var expanded by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(profile ?: ProfileEntity()) }
     LaunchedEffect(profile) { draft = profile ?: ProfileEntity() }
+    val chevronAngle by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    GroupCard {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("个人偏好", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(
-                    if (expanded) "收起" else "展开",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                Column(Modifier.weight(1f)) {
+                    Text("个人偏好", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "口味 / 预算 / 节奏，不填用默认",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.rotate(chevronAngle),
                 )
             }
-            Text(
-                "口味、预算、酒店等偏好，AI 会参考（不填就用默认）。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             if (expanded) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .animateContentSize(),
                 ) {
                     OptionChips("口味辣度", spiceOptions, draft.spiceLevel) { draft = draft.copy(spiceLevel = it) }
                     PrefField(draft.avoidFood, { draft = draft.copy(avoidFood = it) }, "忌口 / 过敏（无就留空）")
-                    PrefField(draft.cuisines, { draft = draft.copy(cuisines = it) }, "偏爱菜系（如：川菜、火锅）")
-                    PrefField(draft.mealBudget, { draft = draft.copy(mealBudget = it) }, "每餐人均预算（如：60 元）")
-                    PrefField(draft.hotelBudget, { draft = draft.copy(hotelBudget = it) }, "酒店每晚预算（如：400 元）")
+                    PrefField(draft.cuisines, { draft = draft.copy(cuisines = it) }, "偏爱菜系")
+                    PrefField(draft.mealBudget, { draft = draft.copy(mealBudget = it) }, "每餐人均（如 60 元）")
+                    PrefField(draft.hotelBudget, { draft = draft.copy(hotelBudget = it) }, "酒店每晚（如 400 元）")
                     OptionChips("酒店档位", tierOptions, draft.hotelTier) { draft = draft.copy(hotelTier = it) }
-                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "酒店位置偏好（如：市中心 / 近地铁）")
+                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "酒店位置（如市中心 / 近地铁）")
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("需要含早餐", modifier = Modifier.weight(1f))
+                        Text("需要含早餐", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Switch(checked = draft.hotelBreakfast, onCheckedChange = { draft = draft.copy(hotelBreakfast = it) })
                     }
                     OptionChips("出行方式", transportOptions, draft.transport) { draft = draft.copy(transport = it) }
                     OptionChips("体力", staminaOptions, draft.stamina) { draft = draft.copy(stamina = it) }
                     OptionChips("旅行节奏", paceOptions, draft.pace) { draft = draft.copy(pace = it) }
-                    PrefField(draft.companion, { draft = draft.copy(companion = it) }, "同行（如：独自 / 情侣 / 带老人小孩）")
+                    PrefField(draft.companion, { draft = draft.copy(companion = it) }, "同行（独自 / 情侣 / 带老人小孩）")
                     PrefField(draft.homeCity, { draft = draft.copy(homeCity = it) }, "常住城市（出发地）")
                     Button(
                         onClick = {
                             vm.saveProfile(draft)
                             Toast.makeText(context, "已保存偏好", Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("保存偏好") }
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    ) { Text("保存偏好", style = MaterialTheme.typography.labelLarge) }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OptionChips(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             options.forEach { opt ->
                 FilterChip(selected = selected == opt, onClick = { onSelect(opt) }, label = { Text(opt) })
             }
@@ -253,7 +287,7 @@ private fun OptionChips(label: String, options: List<String>, selected: String, 
 
 @Composable
 private fun PrefField(value: String, onValueChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
+    KeyboardGuardTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
@@ -310,38 +344,27 @@ private fun millisToDate(m: Long): String =
 private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, onGoToItinerary: () -> Unit) {
     var input by remember { mutableStateOf("") }
     var confirmOpen by remember { mutableStateOf(false) }
-    var fieldFocused by remember { mutableStateOf(false) }
-    val kb = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
-    val dismissKeyboard: () -> Unit = {
-        kb?.hide()
-        focusManager.clearFocus()
-    }
 
     // imePadding：软键盘弹出时自动把输入框顶上去，避免被键盘遮住
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("AI 规划", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text("AI 规划", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             TextButton(onClick = { vm.resetPlan() }) { Text("退出") }
         }
 
-        // 点消息区收键盘（防遮挡）；verticalScroll 里的 clickable 不会拦滚动，只是响应点击
+        // 点消息区空白收键盘（防遮挡），输入框自己会消费点击，不会误触
         Column(
             modifier = Modifier
                 .weight(1f)
+                .tapOutsideToDismissKeyboard()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = dismissKeyboard,
-                ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             CurrentPlanCard(plan)
             plan.messages.forEach { msg -> MessageBubble(msg) }
@@ -349,12 +372,13 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Text(
-                        if (plan.importing) "正在导入行程…（可先切到其它页面，后台继续）"
-                        else "AI 正在修改…（可先切到其它页面，后台继续）",
+                        if (plan.importing) "正在导入…可切到其它页面" else "AI 正在修改…可切到其它页面",
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -366,48 +390,54 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
                     plan.searchNote,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
         }
 
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                Box(Modifier.weight(1f)) {
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { fieldFocused = it.isFocused },
-                        label = { Text("告诉 AI 怎么改（如：第二天换成泰山）") },
-                        maxLines = 3,
-                    )
-                    // 已聚焦（键盘开着）时再点输入框 → 收起键盘退出输入模式
-                    if (fieldFocused) {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = dismissKeyboard,
-                                ),
+                KeyboardGuardTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("告诉 AI 怎么改") },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(20.dp),
+                )
+                val canSend = input.isNotBlank() && !plan.running && !plan.importing
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = if (canSend) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .graphicsLayer {
+                            alpha = if (canSend) 1f else 0.6f
+                        },
+                ) {
+                    IconButton(
+                        onClick = {
+                            vm.sendRefine(context.applicationContext, input)
+                            input = ""
+                        },
+                        enabled = canSend,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "发送",
+                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                Button(
-                    onClick = {
-                        vm.sendRefine(context.applicationContext, input)
-                        input = ""
-                    },
-                    enabled = !plan.running && !plan.importing && input.isNotBlank(),
-                ) { Text("发送") }
             }
-            Button(
+            PrimaryButton(
+                text = if (plan.importing) "正在导入…" else "满意，导入旅行",
                 onClick = { confirmOpen = true },
                 enabled = !plan.running && !plan.importing,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (plan.importing) "正在导入…" else "满意，导入旅行") }
+                highlight = true,
+            )
         }
     }
 
@@ -431,18 +461,18 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
 private fun CurrentPlanCard(plan: AiPlanState) {
     val doc: MdDocument = plan.currentDoc ?: return
     var showRaw by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    GroupCard {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("当前行程", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = { showRaw = !showRaw }) { Text(if (showRaw) "收起原文" else "查看原文 MD") }
+                TextButton(onClick = { showRaw = !showRaw }) { Text(if (showRaw) "收起原文" else "查看原文") }
             }
             val placeCount = doc.days.sumOf { it.items.size }
             val realTicketCount = doc.tickets.count { !it.isSuggestion }
             val suggestCount = doc.tickets.count { it.isSuggestion }
             val trafficDesc = listOfNotNull(
                 if (realTicketCount > 0) "$realTicketCount 张车票" else null,
-                if (suggestCount > 0) "$suggestCount 条交通建议" else null,
+                if (suggestCount > 0) "$suggestCount 条建议" else null,
             ).joinToString(" · ")
             Text(
                 listOf("共 ${doc.days.size} 天", "$placeCount 个地点", trafficDesc)
@@ -476,7 +506,6 @@ private fun CurrentPlanCard(plan: AiPlanState) {
                     )
                     doc.tickets.forEach { t ->
                         val parts = if (t.isSuggestion) {
-                            // 交通建议：只有方式、区间和估算，没有车次与具体时刻
                             listOfNotNull(
                                 ticketTypeLabel(t.type),
                                 "${t.fromStation}→${t.toStation}"
@@ -501,7 +530,7 @@ private fun CurrentPlanCard(plan: AiPlanState) {
                     }
                     if (doc.tickets.any { it.isSuggestion }) {
                         Text(
-                            "标「交通建议」的是还没查到确切班次的；导入后可在「车票」页补填车次和发车时间，填好才会排出发提醒。",
+                            "带「建议」的还没查到确切班次，导入后可补填；填好才会发提醒",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -512,19 +541,32 @@ private fun CurrentPlanCard(plan: AiPlanState) {
     }
 }
 
+/** iOS 风格聊天气泡：自己靠右浅青底，AI 靠左白底细描边 */
 @Composable
 private fun MessageBubble(msg: ChatMsg) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (msg.fromUser) Arrangement.End else Arrangement.Start) {
-        Surface(
-            color = if (msg.fromUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text(
-                msg.text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                color = if (msg.fromUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        Box(Modifier.fillMaxWidth(0.86f)) {
+            Surface(
+                color = if (msg.fromUser) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(
+                    topStart = 18.dp,
+                    topEnd = 18.dp,
+                    bottomStart = if (msg.fromUser) 18.dp else 6.dp,
+                    bottomEnd = if (msg.fromUser) 6.dp else 18.dp,
+                ),
+                border = if (msg.fromUser) null
+                else androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.align(if (msg.fromUser) Alignment.CenterEnd else Alignment.CenterStart),
+            ) {
+                Text(
+                    msg.text,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color = if (msg.fromUser) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }
@@ -537,8 +579,8 @@ private fun ConfirmTripDialog(defaultName: String, onDismiss: () -> Unit, onConf
         title = { Text("导入旅行") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("AI 会把当前行程创建为一个新旅行，名称可修改：", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
+                Text("当前行程会创建为一个新旅行，名称可改：", style = MaterialTheme.typography.bodyMedium)
+                KeyboardGuardTextField(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),

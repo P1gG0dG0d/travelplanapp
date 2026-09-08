@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.local.entity.TripEntity
 import com.haoqi.travel.data.remote.AiSettings
+import com.haoqi.travel.ui.components.KeyboardGuardTextField
+import com.haoqi.travel.ui.components.tapOutsideToDismissKeyboard
 import com.haoqi.travel.ui.trips.TripViewModel
 
 @Composable
@@ -53,6 +55,8 @@ fun MoreScreen(vm: TripViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
+            .tapOutsideToDismissKeyboard()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -163,7 +167,7 @@ private fun AiSettingsCard(context: Context) {
                     )
                 }
             }
-            OutlinedTextField(
+            KeyboardGuardTextField(
                 value = apiKey,
                 onValueChange = {
                     apiKey = it
@@ -182,7 +186,7 @@ private fun AiSettingsCard(context: Context) {
                     }
                 },
             )
-            OutlinedTextField(
+            KeyboardGuardTextField(
                 value = baseUrl,
                 onValueChange = {
                     baseUrl = it
@@ -192,7 +196,7 @@ private fun AiSettingsCard(context: Context) {
                 label = { Text("接口地址") },
                 singleLine = true,
             )
-            OutlinedTextField(
+            KeyboardGuardTextField(
                 value = model,
                 onValueChange = {
                     model = it
