@@ -3,6 +3,8 @@ package com.haoqi.travel.ui.screens
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,9 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,9 @@ import com.haoqi.travel.data.local.entity.PlaceType
 import com.haoqi.travel.data.local.entity.PlanItemEntity
 import com.haoqi.travel.data.local.entity.PlanSlot
 import com.haoqi.travel.data.local.entity.TripEntity
+import com.haoqi.travel.ui.components.GroupCard
+import com.haoqi.travel.ui.components.ScreenTitle
+import com.haoqi.travel.ui.components.SectionLabel
 import com.haoqi.travel.ui.trips.TripViewModel
 
 @Composable
@@ -76,33 +80,22 @@ fun ItineraryScreen(vm: TripViewModel) {
             locatingId = null
             Toast.makeText(
                 context,
-                if (ok) "已定位「${p.name}」，现在可以导航了" else "没搜到「${p.name}」，试试换个更具体的名字",
+                if (ok) "已定位「${p.name}」" else "没搜到「${p.name}」，换个更具体的名字试试",
                 Toast.LENGTH_SHORT,
             ).show()
         }
     }
 
     Column(Modifier.fillMaxSize()) {
+        ScreenTitle("行程")
         Text(
-            "行程 · ${trip.name}",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+            trip.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 20.dp, top = 0.dp, bottom = 4.dp),
         )
 
         StatsCard(trip, places)
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Button(onClick = { vm.autoSchedule() }) { Text("一键排程") }
-            Text(
-                "上午/午餐/下午/晚餐/晚上 · 每天 2–3 个景点",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
 
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -119,19 +112,29 @@ fun ItineraryScreen(vm: TripViewModel) {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             val dayItems = plan.filter { it.dayIndex == selectedDay }
+            if (dayItems.isEmpty()) {
+                item(key = "empty-day") {
+                    Text(
+                        "这一天还没有安排",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .padding(top = 24.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
             for (slot in PlanSlot.entries) {
                 val slotItems = dayItems.filter { it.slot == slot }.sortedBy { it.orderIndex }
+                if (slotItems.isEmpty()) continue
                 item(key = "header-$slot") {
-                    Text(
-                        planSlotLabel(slot),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                    SectionLabel(planSlotLabel(slot), modifier = Modifier.animateItem())
                 }
                 itemsIndexed(slotItems, key = { _, pi -> "plan-${pi.placeId}" }) { index, pi ->
                     PlanItemCard(
@@ -144,32 +147,39 @@ fun ItineraryScreen(vm: TripViewModel) {
                         onRemove = { vm.removeFromPlan(pi.placeId) },
                         onLocate = { placesById[pi.placeId]?.let(locate) },
                         locating = placesById[pi.placeId]?.id == locatingId,
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
 
-            item(key = "header-hotel") {
-                Text(
-                    "酒店",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-            items(hotels, key = { "hotel-${it.id}" }) { h ->
-                PlaceRow(h, action = null, onLocate = { locate(h) }, locating = h.id == locatingId)
+            if (hotels.isNotEmpty()) {
+                item(key = "header-hotel") {
+                    SectionLabel("酒店", modifier = Modifier.animateItem().padding(top = 8.dp))
+                }
+                items(hotels, key = { "hotel-${it.id}" }) { h ->
+                    PlaceRow(
+                        h,
+                        action = null,
+                        onLocate = { locate(h) },
+                        locating = h.id == locatingId,
+                        modifier = Modifier.animateItem(),
+                    )
+                }
             }
 
-            item(key = "header-unplanned") {
-                Text(
-                    "未安排",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-            items(unplanned, key = { "unplanned-${it.id}" }) { p ->
-                PlaceRow(p, action = { adding = p }, onLocate = { locate(p) }, locating = p.id == locatingId)
+            if (unplanned.isNotEmpty()) {
+                item(key = "header-unplanned") {
+                    SectionLabel("未安排", modifier = Modifier.animateItem().padding(top = 8.dp))
+                }
+                items(unplanned, key = { "unplanned-${it.id}" }) { p ->
+                    PlaceRow(
+                        p,
+                        action = { adding = p },
+                        onLocate = { locate(p) },
+                        locating = p.id == locatingId,
+                        modifier = Modifier.animateItem(),
+                    )
+                }
             }
         }
     }
@@ -211,9 +221,9 @@ private fun StatsCard(trip: TripEntity, places: List<PlaceEntity>) {
     val res = places.count { it.type == PlaceType.RESTAURANT }
     val hotel = places.count { it.type == PlaceType.HOTEL }
 
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    GroupCard {
         Row(
-            Modifier.fillMaxWidth().padding(16.dp),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             Stat("天数", trip.days.toString())
@@ -228,7 +238,7 @@ private fun StatsCard(trip: TripEntity, places: List<PlaceEntity>) {
 @Composable
 private fun Stat(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(value, style = MaterialTheme.typography.titleLarge)
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -244,45 +254,56 @@ private fun PlanItemCard(
     onRemove: () -> Unit,
     onLocate: () -> Unit,
     locating: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(place?.name ?: "?", style = MaterialTheme.typography.titleMedium)
-                    val sub = place?.let { p ->
-                        listOfNotNull(
-                            placeTypeLabel(p.type),
-                            p.address.takeIf { it.isNotBlank() },
-                            p.durationMinutes?.let { fmtDuration(it) },
-                        ).joinToString(" · ")
-                    }.orEmpty()
-                    if (sub.isNotBlank()) {
-                        Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    BookingInfo(place)
+    GroupCard(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(place?.name ?: "?", style = MaterialTheme.typography.titleMedium)
+                val sub = place?.let { p ->
+                    listOfNotNull(
+                        placeTypeLabel(p.type),
+                        p.address.takeIf { it.isNotBlank() },
+                        p.durationMinutes?.let { fmtDuration(it) },
+                    ).joinToString(" · ")
+                }.orEmpty()
+                if (sub.isNotBlank()) {
+                    Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = onUp, enabled = canUp) {
-                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "上移")
-                }
-                IconButton(onClick = onDown, enabled = canDown) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移")
-                }
+                BookingInfo(place)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onMove) { Text("移动") }
-                TextButton(onClick = onRemove) { Text("移除", color = MaterialTheme.colorScheme.error) }
-                NavigateButton(place, onLocate = onLocate, locating = locating)
+            IconButton(onClick = onUp, enabled = canUp) {
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "上移")
             }
+            IconButton(onClick = onDown, enabled = canDown) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移")
+            }
+        }
+        HorizontalDivider(
+            Modifier.padding(vertical = 2.dp),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = onMove) { Text("移动", style = MaterialTheme.typography.labelMedium) }
+            TextButton(onClick = onRemove) {
+                Text("移除", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+            }
+            NavigateButton(place, onLocate = onLocate, locating = locating)
         }
     }
 }
 
 @Composable
-private fun PlaceRow(place: PlaceEntity, action: (() -> Unit)?, onLocate: () -> Unit, locating: Boolean) {
-    Card(Modifier.fillMaxWidth()) {
+private fun PlaceRow(
+    place: PlaceEntity,
+    action: (() -> Unit)?,
+    onLocate: () -> Unit,
+    locating: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    GroupCard(modifier = modifier) {
         Row(
-            Modifier.fillMaxWidth().padding(12.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -299,14 +320,14 @@ private fun PlaceRow(place: PlaceEntity, action: (() -> Unit)?, onLocate: () -> 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 NavigateButton(place, onLocate = onLocate, locating = locating)
                 if (action != null) {
-                    TextButton(onClick = action) { Text("加入行程") }
+                    TextButton(onClick = action) { Text("加入行程", style = MaterialTheme.typography.labelMedium) }
                 }
             }
         }
     }
 }
 
-/** 行程页里展示景点的预约/购票说明（需要预约的用强调色标出） */
+/** 行程页里展示景点的预约/购票说明（需要预约的用珊瑚橙强调） */
 @Composable
 private fun BookingInfo(place: PlaceEntity?) {
     val p = place ?: return
@@ -319,7 +340,7 @@ private fun BookingInfo(place: PlaceEntity?) {
     Text(
         parts.joinToString(" ｜ "),
         style = MaterialTheme.typography.bodySmall,
-        color = if (p.needReservation) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (p.needReservation) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 2.dp),
     )
 }
@@ -330,15 +351,16 @@ private fun NavigateButton(place: PlaceEntity?, onLocate: () -> Unit = {}, locat
     val p = place ?: return
     if (p.latitude != null && p.longitude != null) {
         TextButton(onClick = { NavigationHelper.navigateTo(context, p.name, p.latitude!!, p.longitude!!) }) {
-            Text("导航")
+            Text("导航", style = MaterialTheme.typography.labelMedium)
         }
     } else {
         TextButton(onClick = onLocate, enabled = !locating) {
-            Text(if (locating) "定位中…" else "定位")
+            Text(if (locating) "定位中…" else "定位", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlanPickerDialog(
     title: String,
@@ -363,7 +385,10 @@ private fun PlanPickerDialog(
                     }
                 }
                 Text("时段", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     PlanSlot.entries.forEach { s ->
                         FilterChip(selected = s == slot, onClick = { slot = s }, label = { Text(planSlotLabel(s)) })
                     }

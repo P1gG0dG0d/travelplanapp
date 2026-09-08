@@ -148,15 +148,28 @@ object MdParser {
             .map { (idx, list) -> MdDay(idx, list.firstOrNull()?.city.orEmpty(), list.flatMap { it.items }) }
             .sortedBy { it.dayIndex }
 
-        // 同一条线路既给了具体车票、又给了交通建议时，只保留具体车票（AI 常见的重复输出）
+        // 同一条线路既给了具体车票、又给了交通建议时，只保留具体车票；
+        // 同一条线路给了多个具体车票（AI 列了备选）时，只保留出发时间最早的那一个
         val realTickets = tickets.filter { !it.isSuggestion }
-        val cleanedTickets = tickets.filter { t ->
-            if (!t.isSuggestion) return@filter true
-            realTickets.none { r -> sameRoute(r, t) }
+        val keptSuggestions = tickets.filter { t ->
+            t.isSuggestion && realTickets.none { r -> sameRoute(r, t) }
+        }
+        val bestReal = mutableListOf<MdTicket>()
+        realTickets.forEach { t ->
+            val idx = bestReal.indexOfFirst { sameRoute(it, t) }
+            if (idx < 0) {
+                bestReal.add(t)
+            } else if (departureKey(t) < departureKey(bestReal[idx])) {
+                bestReal[idx] = t
+            }
         }
 
-        return MdDocument(tripName, startDate, merged, cleanedTickets)
+        return MdDocument(tripName, startDate, merged, bestReal + keptSuggestions)
     }
+
+    /** 排序键：没解析出时间的排最后，其余按出发时间 */
+    private fun departureKey(t: MdTicket): Long =
+        if (t.departureTime > 0) t.departureTime else Long.MAX_VALUE
 
     /** 两张票是否同方向同线路（站名允许「济南」对「济南东」这种包含关系） */
     private fun sameRoute(a: MdTicket, b: MdTicket): Boolean =
@@ -412,9 +425,9 @@ object MdParser {
         else -> TicketType.TRAIN
     }
 
-    /** 把「济南→泰安」「济南-泰安」「济南至泰安」拆成两端；拆不出来返回 null */
+    /** 把「济南→泰安」「济南-泰安」「济南至泰安」「济南到泰安」拆成两端；拆不出来返回 null */
     private fun splitRoute(s: String): Pair<String, String>? {
-        val normalized = s.trim().replace("->", "→").replace("—", "→").replace("至", "→")
+        val normalized = s.trim().replace("->", "→").replace("—", "→").replace("至", "→").replace("到", "→")
         val parts = normalized.split(Regex("[→\\-]")).map { it.trim() }.filter { it.isNotEmpty() }
         return if (parts.size >= 2) parts[0] to parts[1] else null
     }

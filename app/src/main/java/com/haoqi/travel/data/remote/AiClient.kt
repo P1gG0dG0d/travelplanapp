@@ -5,8 +5,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.ConnectException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.UnknownHostException
 
 /**
  * 调 AI 接口。不引入第三方网络库，用系统自带 HttpURLConnection + org.json 完成。
@@ -158,6 +160,11 @@ object AiClient {
                 throw HttpStatusException(code, "AI 接口返回 $code：${text.take(300)}")
             }
             return text
+        } catch (e: UnknownHostException) {
+            // DNS 解析失败：手机没网/网络切换时常见，用大白话提示
+            throw IOException("连不上 AI 服务（域名解析失败），请检查手机网络后重试", e)
+        } catch (e: ConnectException) {
+            throw IOException("网络连接失败，请检查手机网络后重试", e)
         } finally {
             conn.disconnect()
         }

@@ -354,4 +354,55 @@ class MdParserTest {
         assertEquals("济南", tickets[0].fromStation)
         assertEquals("泰安", tickets[0].toStation)
     }
+
+    @Test
+    fun `duplicate real tickets on same route keep the earliest`() {
+        // AI 列了两个回程航班让用户挑：只保留出发时间最早的那个
+        val md = """
+---
+旅行名称: 测试
+开始日期: 2026-05-01
+---
+
+# 第1天 · 广州
+## 上午
+- 景点: 广州塔 | 地址: 广州市海珠区
+
+# 车票
+- 车次: CZ3102 | 广州白云→北京首都 | 2026-05-03 15:00 | 经济舱 | 到达: 2026-05-03 18:00
+- 车次: CZ3101 | 广州白云→北京首都 | 2026-05-03 08:30 | 经济舱 | 到达: 2026-05-03 11:30
+""".trimIndent()
+        val tickets = MdParser.parse(md).tickets
+
+        assertEquals(1, tickets.size)
+        assertEquals("CZ3101", tickets[0].trainNo)
+        assertTrue(tickets[0].departureTime > 0)
+    }
+
+    @Test
+    fun `route separated by dao character still parses`() {
+        // 「北京到广州」这种写法以前拆不出区间，导致建议和车票无法去重
+        val md = """
+---
+旅行名称: 测试
+开始日期: 2026-05-01
+---
+
+# 第1天 · 广州
+## 上午
+- 景点: 广州塔 | 地址: 广州市海珠区
+
+# 交通建议
+- 方式: 飞机 | 区间: 北京到广州 | 建议时段: 第1天 上午
+
+# 车票
+- 车次: CA1831 | 北京首都→广州白云 | 2026-05-01 08:30 | 经济舱 | 到达: 2026-05-01 11:25
+""".trimIndent()
+        val tickets = MdParser.parse(md).tickets
+
+        // 建议和车票是同一条线路（北京→广州），只保留具体航班
+        assertEquals(1, tickets.size)
+        assertEquals(false, tickets[0].isSuggestion)
+        assertEquals("CA1831", tickets[0].trainNo)
+    }
 }

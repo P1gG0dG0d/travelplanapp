@@ -81,7 +81,9 @@ class AiPromptTest {
 
     @Test
     fun `prompt picks transport by distance and requires dinner and booking method`() {
-        assertTrue("长途要优先推荐飞机", prompt.contains("优先推荐飞机"))
+        assertTrue("长途才优先飞机", prompt.contains("才优先飞机"))
+        assertTrue("要按门到门时间比较飞机和高铁", prompt.contains("门到门"))
+        assertTrue("北京到上海这类距离要优先高铁", prompt.contains("北京—上海）一律优先高铁"))
         assertTrue("午餐和晚餐都要推荐", prompt.contains("午餐和晚餐"))
         assertTrue("早餐可不推荐", prompt.contains("早餐一般简单解决"))
         assertTrue("要标注预约/购票方式", prompt.contains("预约方式"))
@@ -98,7 +100,8 @@ class AiPromptTest {
             withTickets = true,
         )
         assertTrue("线路要全覆盖", withTickets.contains("一条都不能少"))
-        assertTrue("同一线路不能两边都给", withTickets.contains("两边都给"))
+        assertTrue("同一线路不能既给车票又给建议", withTickets.contains("既给车票又给建议"))
+        assertTrue("每条线路只给一个最佳班次", withTickets.contains("只挑一个最合适"))
         assertTrue("时间必须带完整日期", withTickets.contains("不要只写 8:30"))
     }
 }

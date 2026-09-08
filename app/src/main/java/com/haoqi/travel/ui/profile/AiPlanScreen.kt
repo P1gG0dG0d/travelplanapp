@@ -3,6 +3,7 @@ package com.haoqi.travel.ui.profile
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +45,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.importer.MdDocument
@@ -161,7 +165,10 @@ private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewMo
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("AI 正在规划，通常 10–40 秒…", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "AI 正在规划，通常 10–60 秒，联网搜索会更久…（可切到其它页面，后台继续生成）",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
                 plan.error?.let {
@@ -303,6 +310,13 @@ private fun millisToDate(m: Long): String =
 private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, onGoToItinerary: () -> Unit) {
     var input by remember { mutableStateOf("") }
     var confirmOpen by remember { mutableStateOf(false) }
+    var fieldFocused by remember { mutableStateOf(false) }
+    val kb = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val dismissKeyboard: () -> Unit = {
+        kb?.hide()
+        focusManager.clearFocus()
+    }
 
     // imePadding：软键盘弹出时自动把输入框顶上去，避免被键盘遮住
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -313,14 +327,20 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("AI 规划", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = { vm.resetPlan() }) { Text("重新生成") }
+            TextButton(onClick = { vm.resetPlan() }) { Text("退出") }
         }
 
+        // 点消息区收键盘（防遮挡）；verticalScroll 里的 clickable 不会拦滚动，只是响应点击
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = dismissKeyboard,
+                ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CurrentPlanCard(plan)
@@ -332,7 +352,8 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text(
-                        if (plan.importing) "正在导入行程…" else "AI 正在修改…",
+                        if (plan.importing) "正在导入行程…（可先切到其它页面，后台继续）"
+                        else "AI 正在修改…（可先切到其它页面，后台继续）",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -351,13 +372,29 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
 
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("告诉 AI 怎么改（如：第二天换成泰山）") },
-                    maxLines = 3,
-                )
+                Box(Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { fieldFocused = it.isFocused },
+                        label = { Text("告诉 AI 怎么改（如：第二天换成泰山）") },
+                        maxLines = 3,
+                    )
+                    // 已聚焦（键盘开着）时再点输入框 → 收起键盘退出输入模式
+                    if (fieldFocused) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = dismissKeyboard,
+                                ),
+                        )
+                    }
+                }
                 Button(
                     onClick = {
                         vm.sendRefine(context.applicationContext, input)

@@ -23,14 +23,14 @@ val OnCoral = Color(0xFFFFFFFF)
 val CoralContainer = Color(0xFFFFE9E3)
 val OnCoralContainer = Color(0xFF9E3B24)
 
-// ---- 中性色（iOS 分组风格）----
+// ---- 中性色（iOS 分组风格 · 暖白底）----
 val Ink = Color(0xFF1C1C1E) // 近黑正文
 val InkSecondary = Color(0xFF8E8E93) // 次要文字
 val PaperWhite = Color(0xFFFFFFFF) // 卡片
-val GroupedGray = Color(0xFFF2F2F7) // 页面浅灰底
-val Hairline = Color(0xFFE5E5EA) // 发丝分隔线/描边
-val PaperGray = Color(0xFFF6F6F9) // 略灰的白色（高层级表面）
-val PaperGrayDeep = Color(0xFFF0F0F4) // 最高层级表面
+val WarmPaper = Color(0xFFFAF9F7) // 页面暖白底（米白纸感）
+val Hairline = Color(0xFFE9E6E1) // 发丝分隔线/描边（暖调）
+val PaperGray = Color(0xFFFAF8F5) // 略暖的白色（高层级表面）
+val PaperGrayDeep = Color(0xFFF1EEE9) // 最高层级表面（暖调）
 
 // ---- 语义色 ----
 val DangerRed = Color(0xFFFF3B30) // iOS 红
