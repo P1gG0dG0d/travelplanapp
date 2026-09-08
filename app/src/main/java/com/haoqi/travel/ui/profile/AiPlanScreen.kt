@@ -31,10 +31,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,10 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.importer.MdDocument
 import com.haoqi.travel.data.importer.placeTypeLabel
+import com.haoqi.travel.data.local.entity.PlaceType
 import com.haoqi.travel.data.local.entity.ProfileEntity
+import com.haoqi.travel.ui.components.AnimatedAlertDialog
 import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
 import com.haoqi.travel.ui.components.PrimaryButton
+import com.haoqi.travel.ui.components.ThinkingDots
 import com.haoqi.travel.ui.components.tapOutsideToDismissKeyboard
 import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.tickets.ticketTypeLabel
@@ -78,6 +79,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
 private val spiceOptions = listOf("不吃辣", "微辣", "中辣", "重辣")
 private val tierOptions = listOf("经济型", "中端", "高端")
@@ -179,7 +181,7 @@ private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewMo
 
                 if (plan.running) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        ThinkingDots()
                         Text(
                             "AI 正在规划…（可切到其它页面，后台继续）",
                             style = MaterialTheme.typography.bodySmall,
@@ -378,12 +380,16 @@ private fun ChatPanel(plan: AiPlanState, vm: TripViewModel, context: Context, on
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(horizontal = 4.dp),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text(
-                        if (plan.importing) "正在导入…可切到其它页面" else "AI 正在修改…可切到其它页面",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    ThinkingDots()
+                    if (plan.importing) {
+                        Text(
+                            "正在导入行程…可切到其它页面",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        ThinkingStatus()
+                    }
                 }
             }
             plan.error?.let {
@@ -498,7 +504,14 @@ private fun CurrentPlanCard(plan: AiPlanState) {
                         modifier = Modifier.padding(top = 6.dp),
                     )
                     day.items.forEach { p ->
-                        Text("· ${placeTypeLabel(p.type)} ${p.name}", style = MaterialTheme.typography.bodySmall)
+                        val suffix = if (p.type == PlaceType.HOTEL) {
+                            when {
+                                day.dayIndex == 1 -> "（入住）"
+                                day.dayIndex == doc.days.size -> "（退房）"
+                                else -> "（续住）"
+                            }
+                        } else ""
+                        Text("· ${placeTypeLabel(p.type)} ${p.name}$suffix", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (doc.tickets.isNotEmpty()) {
@@ -543,6 +556,29 @@ private fun CurrentPlanCard(plan: AiPlanState) {
             }
         }
     }
+}
+
+/** 生成/修改中轮流显示“思考流程”，让用户知道 AI 在干嘛 */
+@Composable
+private fun ThinkingStatus() {
+    val steps = listOf(
+        "正在查询交通班次…",
+        "正在规划每日行程…",
+        "正在比选酒店与饭店…",
+        "正在整理成行程…",
+    )
+    var i by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2600)
+            i = (i + 1) % steps.size
+        }
+    }
+    Text(
+        steps[i],
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** 消息气泡：新出现时从下淡入 + 轻微上浮 */
@@ -591,7 +627,7 @@ private fun MessageBubble(msg: ChatMsg) {
 @Composable
 private fun ConfirmTripDialog(defaultName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(defaultName) }
-    AlertDialog(
+    AnimatedAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("导入旅行") },
         text = {

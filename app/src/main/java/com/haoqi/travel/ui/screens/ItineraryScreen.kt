@@ -10,15 +10,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,9 +47,11 @@ import com.haoqi.travel.data.local.entity.PlaceType
 import com.haoqi.travel.data.local.entity.PlanItemEntity
 import com.haoqi.travel.data.local.entity.PlanSlot
 import com.haoqi.travel.data.local.entity.TripEntity
+import com.haoqi.travel.ui.components.AnimatedAlertDialog
 import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.ScreenTitle
 import com.haoqi.travel.ui.components.SectionLabel
+import com.haoqi.travel.ui.map.AddPlaceDialog
 import com.haoqi.travel.ui.theme.Motion
 import com.haoqi.travel.ui.trips.TripViewModel
 
@@ -73,6 +78,7 @@ fun ItineraryScreen(vm: TripViewModel) {
 
     var moving by remember { mutableStateOf<PlanItemEntity?>(null) }
     var adding by remember { mutableStateOf<PlaceEntity?>(null) }
+    var addingNew by remember { mutableStateOf(false) }
     var locatingId by remember { mutableStateOf<Long?>(null) }
 
     // 手动给没坐标的地点重新搜索定位
@@ -98,6 +104,19 @@ fun ItineraryScreen(vm: TripViewModel) {
         )
 
         StatsCard(trip, places)
+
+        Button(
+            onClick = { addingNew = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) { Text("添加地点", style = MaterialTheme.typography.labelLarge) }
 
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -155,11 +174,18 @@ fun ItineraryScreen(vm: TripViewModel) {
                 }
             }
 
-            if (hotels.isNotEmpty()) {
-                item(key = "header-hotel") {
-                    SectionLabel("酒店", modifier = Modifier.animateItem().padding(top = 8.dp))
+            // 当天酒店：按酒店在列表中的顺序对应第 1/2/3 天，标注 入住/续住/退房
+            val dayHotels = hotels.filterIndexed { idx, _ -> idx + 1 == day }
+            if (dayHotels.isNotEmpty()) {
+                val status = when {
+                    day == 1 -> "入住"
+                    day == dayCount -> "退房"
+                    else -> "续住"
                 }
-                items(hotels, key = { "hotel-${it.id}" }) { h ->
+                item(key = "header-hotel-$day") {
+                    SectionLabel("酒店 · $status", modifier = Modifier.animateItem().padding(top = 8.dp))
+                }
+                items(dayHotels, key = { "hotel-${it.id}" }) { h ->
                     PlaceRow(
                         h,
                         action = null,
@@ -212,6 +238,29 @@ fun ItineraryScreen(vm: TripViewModel) {
             onConfirm = { day, slot ->
                 vm.addPlaceToPlan(p.id, day, slot)
                 adding = null
+            },
+        )
+    }
+
+    if (addingNew) {
+        AddPlaceDialog(
+            initialAddress = "",
+            onDismiss = { addingNew = false },
+            onConfirm = { name, type, address, note, needReservation, reservationDate, bookingInfo ->
+                vm.addPlace(
+                    context.applicationContext,
+                    name,
+                    type,
+                    "",
+                    address,
+                    null,
+                    null,
+                    note,
+                    needReservation,
+                    reservationDate,
+                    bookingInfo,
+                )
+                addingNew = false
             },
         )
     }
@@ -377,7 +426,7 @@ private fun PlanPickerDialog(
     var day by remember { mutableStateOf(initialDay) }
     var slot by remember { mutableStateOf(initialSlot) }
 
-    AlertDialog(
+    AnimatedAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {

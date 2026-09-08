@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.local.entity.TripEntity
 import com.haoqi.travel.data.remote.AiSettings
+import com.haoqi.travel.ui.components.AnimatedAlertDialog
 import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
 import com.haoqi.travel.ui.components.PrimaryButton
@@ -90,7 +90,7 @@ fun MoreScreen(vm: TripViewModel) {
     }
 
     tripToDelete?.let { trip ->
-        AlertDialog(
+        AnimatedAlertDialog(
             onDismissRequest = { tripToDelete = null },
             title = { Text("删除旅行") },
             text = { Text("确定删除「${trip.name}」吗？该旅行的地点、行程、车票都会一起删除，且不可恢复。") },
@@ -119,18 +119,16 @@ private fun AiSettingsCard(context: Context) {
         )
     }
     var baseUrl by remember { mutableStateOf(config.baseUrl) }
-    var model by remember { mutableStateOf(config.model) }
     var apiKey by remember { mutableStateOf(config.apiKey) }
     var showKey by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var webSearch by remember { mutableStateOf(AiSettings.isWebSearchEnabled(context)) }
 
-    // 切换服务商：地址/模型用该服务商默认值，Key 读该服务商自己保存的（互不串）
+    // 切换服务商：地址用该服务商默认值，Key 读该服务商自己保存的（互不串）
     fun selectProvider(i: Int) {
         providerIndex = i
         val p = AiSettings.providers[i]
         baseUrl = p.baseUrl
-        model = p.model
         apiKey = AiSettings.loadKey(context, p.name)
         saved = false
     }
@@ -186,55 +184,10 @@ private fun AiSettingsCard(context: Context) {
                 label = { Text("接口地址") },
                 singleLine = true,
             )
-            KeyboardGuardTextField(
-                value = model,
-                onValueChange = {
-                    model = it
-                    saved = false
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("模型名称") },
-                singleLine = true,
-            )
-            // 常用模型快选：点一下填进上面的输入框，仍可手动改
-            val presetModels = AiSettings.providers[providerIndex].models
-            if (presetModels.isNotEmpty()) {
-                Text("常用模型（点选）", style = MaterialTheme.typography.labelMedium)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    presetModels.forEach { m ->
-                        FilterChip(
-                            selected = model == m,
-                            onClick = {
-                                model = m
-                                saved = false
-                            },
-                            label = {
-                                Text(
-                                    when {
-                                        m.contains("v4") -> "$m（更聪明，联网搜索推荐）"
-                                        else -> "$m（便宜稳定）"
-                                    },
-                                )
-                            },
-                        )
-                    }
-                }
-                if (webSearch && model == "deepseek-chat") {
-                    Text(
-                        "提示：联网搜索（尤其查机票）用 deepseek-v4-flash 效果更好，点上面的芯片切换后记得「保存」。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
             PrimaryButton(
                 text = "保存",
                 onClick = {
-                    AiSettings.save(context, AiSettings.providers[providerIndex].name, baseUrl, model, apiKey)
+                    AiSettings.save(context, AiSettings.providers[providerIndex].name, baseUrl, apiKey)
                     saved = true
                 },
                 enabled = apiKey.isNotBlank(),
@@ -252,11 +205,9 @@ private fun AiSettingsCard(context: Context) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("让 AI 联网查资料（实验功能）", style = MaterialTheme.typography.bodyLarge)
+                    Text("联网查真实车次/航班", style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "开启后改用 DeepSeek 的 Responses API，让模型联网搜索 12306 / 航司的真实班次，能查到就给出具体车次和发车时间；" +
-                            "查不到会退回「交通建议」。如果这个接口调不通，会自动退回普通模式，不影响你正常使用。\n" +
-                            "注意：AI 给的车次和时间仍可能有误差，订票前请以 12306 实时查询为准。",
+                        "更慢但更准；查不到会退回交通建议，订票前请以 12306 为准。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

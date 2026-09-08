@@ -80,12 +80,15 @@ fun HaoQiTravelApp(repository: TravelRepository) {
     // 手写双图层横滑：current 是垫在底下的「原页」，pending 是从旁边滑进来的「新页」。
     var current by remember { mutableStateOf(AppTab.MAP) }
     var pending by remember { mutableStateOf<AppTab?>(null) }
+    // 导航指示器立即跟随点击（不等页面动画结束），否则胶囊会“卡一下才动”
+    var navSel by remember { mutableStateOf(AppTab.MAP) }
     val curOffset = remember { Animatable(0f) }
     val pendOffset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     fun switchTo(next: AppTab) {
         if (next == current || pending != null) return
+        navSel = next
         val forward = next.ordinal > current.ordinal
         scope.launch {
             if (next == AppTab.MAP) {
@@ -107,7 +110,7 @@ fun HaoQiTravelApp(repository: TravelRepository) {
     }
 
     Scaffold(
-        bottomBar = { SlidingNavBar(selected = current, onSelect = ::switchTo) }
+        bottomBar = { SlidingNavBar(selected = navSel, onSelect = ::switchTo) }
     ) { innerPadding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(innerPadding)) {
             val density = LocalDensity.current
@@ -182,7 +185,7 @@ private fun SlidingNavBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
                     .offset { IntOffset(x.roundToInt(), 0) }
                     .fillMaxHeight()
                     .width(with(density) { tabWidthPx.toDp() })
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 4.dp, vertical = 10.dp),
             ) {
                 Box(
                     Modifier

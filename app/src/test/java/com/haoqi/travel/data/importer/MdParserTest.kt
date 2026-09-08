@@ -405,4 +405,49 @@ class MdParserTest {
         assertEquals(false, tickets[0].isSuggestion)
         assertEquals("CA1831", tickets[0].trainNo)
     }
+
+    @Test
+    fun `flight number with hyphen infers flight`() {
+        val md = """
+---
+旅行名称: 测试
+开始日期: 2026-05-01
+---
+
+# 第1天 · 北京
+## 上午
+- 景点: 故宫 | 地址: 北京市东城区
+
+# 车票
+- 车次: MF-1020 | 广州白云→北京大兴 | 2026-05-03 10:00 | 经济舱 | 到达: 2026-05-03 13:00
+""".trimIndent()
+        val t = MdParser.parse(md).tickets.single()
+        assertEquals(TicketType.FLIGHT, t.type)
+        assertEquals("MF-1020", t.trainNo)
+    }
+
+    @Test
+    fun `duplicate suggestions and self loops are dropped`() {
+        val md = """
+---
+旅行名称: 测试
+开始日期: 2026-05-01
+---
+
+# 第1天 · 武汉
+## 上午
+- 景点: 黄鹤楼 | 地址: 武汉市
+
+# 交通建议
+- 方式: 高铁 | 区间: 洛阳→西安 | 建议时段: 第3天 上午 | 大约时长: 1小时30分钟
+- 方式: 高铁 | 区间: 洛阳→西安 | 建议时段: 第3天 上午 | 大约时长: 1小时30分钟
+- 方式: 高铁 | 区间: 武汉→武汉 | 建议时段: 第2天 晚上
+""".trimIndent()
+        val tickets = MdParser.parse(md).tickets
+
+        // 两条重复的「洛阳→西安」只留一条；「武汉→武汉」自环直接丢弃
+        assertEquals(1, tickets.size)
+        assertEquals("洛阳", tickets[0].fromStation)
+        assertEquals("西安", tickets[0].toStation)
+    }
 }

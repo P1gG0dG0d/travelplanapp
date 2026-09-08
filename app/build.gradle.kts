@@ -1,9 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+// 高德 Key 放在本机 local.properties（不进 git）；别人从源码构建时换成自己的 Key
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val amapKey: String = localProps.getProperty("amap.key") ?: "YOUR_AMAP_KEY"
 
 android {
     namespace = "com.haoqi.travel"
@@ -15,6 +24,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+        manifestPlaceholders["AMAP_KEY"] = amapKey
     }
 
     buildTypes {

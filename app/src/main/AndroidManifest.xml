@@ -16,10 +16,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.HaoQiTravel">
 
-        <!-- 高德地图 Key -->
+        <!-- 高德地图 Key：构建时从 local.properties 注入，源码里不放真实 Key -->
         <meta-data
             android:name="com.amap.api.v2.apikey"
-            android:value="2609b6778a8691f327542a8c0d2e50f0" />
+            android:value="${AMAP_KEY}" />
 
         <activity
             android:name=".MainActivity"

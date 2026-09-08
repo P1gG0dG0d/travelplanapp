@@ -33,7 +33,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.local.entity.TicketEntity
 import com.haoqi.travel.data.local.entity.defaultRemindMinutes
 import com.haoqi.travel.ui.components.GroupCard
-import com.haoqi.travel.ui.components.PrimaryButton
 import com.haoqi.travel.ui.components.ScreenTitle
 import com.haoqi.travel.ui.tickets.AddTicketDialog
 import com.haoqi.travel.ui.tickets.ticketTypeLabel
@@ -176,14 +175,9 @@ private fun TicketCard(ticket: TicketEntity, onEdit: () -> Unit, onDelete: () ->
                 Text(ticket.note, style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                "车次与时刻请以 12306 实时查询为准",
+                "车次与时刻请以 12306 实时查询为准，需要录入点右上角 ✏️",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            PrimaryButton(
-                text = "填写真实车票",
-                onClick = onEdit,
-                modifier = Modifier.padding(top = 6.dp),
             )
         } else {
             val dep = formatDeparture(ticket.departureTime)

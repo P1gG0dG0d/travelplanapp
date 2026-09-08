@@ -1,36 +1,52 @@
 package com.haoqi.travel.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -38,6 +54,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.haoqi.travel.ui.theme.Motion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -276,5 +293,85 @@ fun Modifier.tapOutsideToDismissKeyboard(): Modifier {
     ) {
         kb?.hide()
         focusManager.clearFocus()
+    }
+}
+
+/**
+ * 弹窗（缩放 + 淡入出场）。API 与 AlertDialog 基本一致，全 App 弹窗统一用它。
+ */
+@Composable
+fun AnimatedAlertDialog(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: (@Composable () -> Unit)? = null,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: (@Composable () -> Unit)? = null,
+) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        val offsetY = remember { Animatable(1200f) }
+        val alpha = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            launch { offsetY.animateTo(0f, Motion.pageSlideIn) }
+            launch { alpha.animateTo(1f, Motion.fadeIn) }
+        }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .graphicsLayer {
+                        translationY = offsetY.value
+                        this.alpha = alpha.value
+                    },
+            ) {
+                Column(Modifier.fillMaxWidth().padding(24.dp)) {
+                    ProvideTextStyle(MaterialTheme.typography.headlineSmall) { title() }
+                    if (text != null) {
+                        Spacer(Modifier.height(10.dp))
+                        ProvideTextStyle(MaterialTheme.typography.bodyMedium) { text() }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        dismissButton?.invoke()
+                        confirmButton()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 加载态「三点呼吸」动画（AI 正在规划/修改时用） */
+@Composable
+fun ThinkingDots(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "thinking")
+    Row(
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { i ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(360, delayMillis = i * 120),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot$i",
+            )
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)),
+            )
+        }
     }
 }

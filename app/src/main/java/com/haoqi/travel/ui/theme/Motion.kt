@@ -34,8 +34,8 @@ object Motion {
     /** 页面横滑退出（240ms） */
     val pageSlideOut = tween<Float>(240, easing = FastOutSlowInEasing)
 
-    /** 导航指示器胶囊滑动：平滑 + 极轻回弹 */
-    val navSlide: SpringSpec<Float> = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)
+    /** 导航指示器胶囊滑动：与页面横滑同参（320ms 同缓动），保证同步移动 */
+    val navSlide = tween<Float>(320, easing = FastOutSlowInEasing)
 
     /** 导航图标选中放大：弹性 */
     val navIcon: SpringSpec<Float> = spring(dampingRatio = 0.5f, stiffness = 600f)

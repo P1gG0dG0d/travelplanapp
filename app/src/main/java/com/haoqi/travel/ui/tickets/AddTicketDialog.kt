@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haoqi.travel.data.local.entity.TicketEntity
 import com.haoqi.travel.data.local.entity.TicketType
+import com.haoqi.travel.ui.components.AnimatedAlertDialog
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
 import java.time.Instant
 import java.time.LocalDateTime
@@ -66,7 +66,7 @@ fun AddTicketDialog(
         }.getOrNull()
     }
 
-    AlertDialog(
+    AnimatedAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "添加车票" else "填写真实车票") },
         text = {

@@ -17,14 +17,10 @@ data class AiConfig(
 
 object AiSettings {
 
-    data class Provider(val name: String, val baseUrl: String, val model: String, val models: List<String> = emptyList())
+    data class Provider(val name: String, val baseUrl: String, val model: String)
 
     val providers = listOf(
-        Provider(
-            "DeepSeek", "https://api.deepseek.com", "deepseek-chat",
-            // deepseek-chat：便宜稳定；deepseek-v4-flash：更聪明，联网搜索（尤其查机票）建议用它
-            models = listOf("deepseek-chat", "deepseek-v4-flash"),
-        ),
+        Provider("DeepSeek", "https://api.deepseek.com", "deepseek-chat"),
     )
 
     private const val PREFS = "ai_settings"
@@ -49,12 +45,11 @@ object AiSettings {
         val key = p.getString(keyFor(provider.name), "").orEmpty()
             .ifBlank { p.getString(KEY_API_KEY_LEGACY, "").orEmpty() }
         val savedBase = p.getString(KEY_BASE_URL, "").orEmpty()
-        val savedModel = p.getString(KEY_MODEL, "").orEmpty()
-        // 仅当保存的服务商仍然有效时，才沿用你自定义过的地址/模型
+        // 模型固定用 deepseek-chat（免费、快、联网也准），不再允许选择其它模型
         val stillValid = provider.name == savedName
         return AiConfig(
             baseUrl = if (stillValid) savedBase.ifBlank { provider.baseUrl } else provider.baseUrl,
-            model = if (stillValid) savedModel.ifBlank { provider.model } else provider.model,
+            model = provider.model,
             apiKey = key,
             webSearch = p.getBoolean(KEY_WEB_SEARCH, false),
         )
@@ -70,11 +65,10 @@ object AiSettings {
             .apply()
     }
 
-    fun save(context: Context, providerName: String, baseUrl: String, model: String, apiKey: String) {
+    fun save(context: Context, providerName: String, baseUrl: String, apiKey: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_PROVIDER, providerName)
             .putString(KEY_BASE_URL, baseUrl.trim())
-            .putString(KEY_MODEL, model.trim())
             .putString(keyFor(providerName), apiKey.trim())
             .apply()
     }

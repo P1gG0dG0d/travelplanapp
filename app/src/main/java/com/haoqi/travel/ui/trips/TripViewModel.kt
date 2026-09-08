@@ -319,14 +319,42 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
             return
         }
         viewModelScope.launch {
-            _planState.value = _planState.value.copy(running = true, error = null, searchNote = "")
+            // 立即进入聊天页显示“正在规划”，让用户有反馈，而不是盯着表单干等
+            _planState.value = _planState.value.copy(
+                phase = PlanPhase.CHAT,
+                running = true,
+                error = null,
+                searchNote = "",
+                messages = listOf(ChatMsg(fromUser = false, text = "正在为你规划行程，联网搜索可能稍慢，请稍候…")),
+            )
             try {
                 val md = callAi(context, buildPlanBrief(spec, profile.value, webSearch), webSearch)
-                val doc = MdParser.parse(md)
+                var doc = MdParser.parse(md)
                 if (doc.days.none { it.items.isNotEmpty() }) {
                     throw IllegalStateException("AI 没返回完整的每日行程（可能只回了车票/交通）。请点「重新规划」再试一次；如果一直这样，请把「查看原文 MD」的内容发给我")
                 }
-                val missing = missingLegs(spec, doc)
+
+                // 联网搜索下，若发现有缺的交通段（去程/返程没生成），自动再请求一次补上（只补一次，避免拖太久）
+                var missing = missingLegs(spec, doc)
+                if (missing.isNotEmpty() && webSearch) {
+                    val fillPrompt = buildRefinePrompt(
+                        spec,
+                        profile.value,
+                        MdExporter.fromDocument(doc),
+                        "缺少这些交通段：" + missing.joinToString("、") { "${it.first}→${it.second}" } +
+                            "。请务必用 web_search 按「带完整日期」的关键词精确查询它们的真实航班/车次并补进「# 车票」；" +
+                            "查不到就补进「# 交通建议」，其余行程保持不变。",
+                        withTickets = true,
+                    )
+                    runCatching { callAi(context, fillPrompt, webSearch = true) }.getOrNull()?.let { md2 ->
+                        val doc2 = MdParser.parse(md2)
+                        if (doc2.days.any { it.items.isNotEmpty() }) {
+                            doc = doc2
+                            missing = missingLegs(spec, doc)
+                        }
+                    }
+                }
+
                 _planState.value = _planState.value.copy(
                     phase = PlanPhase.CHAT,
                     running = false,
@@ -419,18 +447,31 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
             _planState.value = _planState.value.copy(searchNote = "")
             return chatWithOneRetry(config, prompt)
         }
-        // 联网搜索有时会一直卡在搜索上：最多等 150 秒，超时就熔断换普通模式
-        val md = withTimeoutOrNull(150_000) {
-            runCatching { AiClient.chatWithWebSearch(config, prompt) }.getOrNull()
+        // 联网搜索有时会卡在搜索上：先最多等 90 秒，超时/失败就取消这次、重试一次联网搜索；
+        // 第二次仍不行才退回普通模式（用户反馈过“第一次失败、重试一次就成功”）
+        suspend fun tryWebSearch(): String? = withTimeoutOrNull(90_000) {
+            try {
+                AiClient.chatWithWebSearch(config, prompt)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
         }
-        if (md == null) {
-            _planState.value = _planState.value.copy(
-                searchNote = "联网搜索超时或没成功，已自动改用普通模式生成",
-            )
-            return chatWithOneRetry(config, prompt)
+        val first = tryWebSearch()
+        if (first != null) {
+            _planState.value = _planState.value.copy(searchNote = "已用联网搜索模式生成（车次/时刻仍请以 12306 为准）")
+            return first
         }
-        _planState.value = _planState.value.copy(searchNote = "已用联网搜索模式生成（车次/时刻仍请以 12306 为准）")
-        return md
+        val second = tryWebSearch()
+        if (second != null) {
+            _planState.value = _planState.value.copy(searchNote = "联网搜索第一次超时，重试后成功（车次/时刻请以 12306 为准）")
+            return second
+        }
+        _planState.value = _planState.value.copy(
+            searchNote = "联网搜索两次都没成功，已自动改用普通模式生成",
+        )
+        return chatWithOneRetry(config, prompt)
     }
 
     /**

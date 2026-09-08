@@ -145,14 +145,24 @@ object MdParser {
 
         val merged = days
             .groupBy { it.dayIndex }
-            .map { (idx, list) -> MdDay(idx, list.firstOrNull()?.city.orEmpty(), list.flatMap { it.items }) }
+            .map { (idx, list) ->
+                // 同一天里名称相同的景点/饭店去重（AI 偶尔会重复推荐同一个地点）
+                val deduped = list.flatMap { it.items }
+                    .distinctBy { p -> "${p.type}:${p.name.trim()}" }
+                MdDay(idx, list.firstOrNull()?.city.orEmpty(), deduped)
+            }
             .sortedBy { it.dayIndex }
 
         // 同一条线路既给了具体车票、又给了交通建议时，只保留具体车票；
         // 同一条线路给了多个具体车票（AI 列了备选）时，只保留出发时间最早的那一个
         val realTickets = tickets.filter { !it.isSuggestion }
         val keptSuggestions = tickets.filter { t ->
-            t.isSuggestion && realTickets.none { r -> sameRoute(r, t) }
+            t.isSuggestion && realTickets.none { r -> sameRoute(r, t) } && !isSelfLoop(t)
+        }
+        // 两条一模一样的建议（同线路 + 同备注）只留一条；同线路但备注不同的（如不同“参考班次”）保留
+        val dedupedSuggestions = mutableListOf<MdTicket>()
+        keptSuggestions.forEach { t ->
+            if (dedupedSuggestions.none { sameRoute(it, t) && it.note == t.note }) dedupedSuggestions.add(t)
         }
         val bestReal = mutableListOf<MdTicket>()
         realTickets.forEach { t ->
@@ -164,8 +174,12 @@ object MdParser {
             }
         }
 
-        return MdDocument(tripName, startDate, merged, bestReal + keptSuggestions)
+        return MdDocument(tripName, startDate, merged, bestReal + dedupedSuggestions)
     }
+
+    /** 起终点相同（如“武汉→武汉”“机场→市区”）这类自环，基本是模型噪声，去掉 */
+    private fun isSelfLoop(t: MdTicket): Boolean =
+        t.fromStation.isNotBlank() && t.toStation.isNotBlank() && stationMatch(t.fromStation, t.toStation)
 
     /** 排序键：没解析出时间的排最后，其余按出发时间 */
     private fun departureKey(t: MdTicket): Long =
@@ -456,7 +470,8 @@ object MdParser {
 
     /** 车次/航班号推断交通类型：G/D/C=高铁；K/T/Z/Y/L 和纯数字=火车；「字母数字混合两位+3~4位数字」=航班 */
     private fun inferTicketType(no: String): TicketType {
-        val s = no.trim().uppercase()
+        // 去掉连字符/空格再判（航班号常写成 MF-1020、HO 7356 这种）
+        val s = no.trim().uppercase().replace("-", "").replace(" ", "")
         return when {
             Regex("""^[GDC]\d{1,4}$""").matches(s) -> TicketType.HIGH_SPEED_RAIL
             Regex("""^[KTZYL]\d{1,5}$""").matches(s) || Regex("""^\d{1,5}$""").matches(s) -> TicketType.TRAIN

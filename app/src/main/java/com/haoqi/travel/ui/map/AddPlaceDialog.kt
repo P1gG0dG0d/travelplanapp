@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
@@ -21,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haoqi.travel.data.local.entity.PlaceType
+import com.haoqi.travel.ui.components.AnimatedAlertDialog
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
 
 @Composable
@@ -45,7 +45,7 @@ fun AddPlaceDialog(
     var reservationDate by remember { mutableStateOf("") }
     var bookingInfo by remember { mutableStateOf("") }
 
-    AlertDialog(
+    AnimatedAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("添加地点") },
         text = {
