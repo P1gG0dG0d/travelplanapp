@@ -20,6 +20,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 个人自用：正式版也用调试密钥签名，行为与调试版一致、数据互通；
+            // 好处是系统不再弹「可调试应用/16KB」兼容性警告，适合日常使用
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
