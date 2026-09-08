@@ -17,8 +17,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,7 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haoqi.travel.data.local.entity.TripEntity
 import com.haoqi.travel.data.remote.AiSettings
+import com.haoqi.travel.ui.components.GroupCard
 import com.haoqi.travel.ui.components.KeyboardGuardTextField
+import com.haoqi.travel.ui.components.PrimaryButton
+import com.haoqi.travel.ui.components.ScreenTitle
 import com.haoqi.travel.ui.components.tapOutsideToDismissKeyboard
 import com.haoqi.travel.ui.trips.TripViewModel
 
@@ -58,18 +59,15 @@ fun MoreScreen(vm: TripViewModel) {
             .imePadding()
             .tapOutsideToDismissKeyboard()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("更多", style = MaterialTheme.typography.headlineSmall)
+        ScreenTitle("更多")
 
         AiSettingsCard(context.applicationContext)
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        GroupCard {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("旅行管理", style = MaterialTheme.typography.titleMedium)
                 if (trips.isEmpty()) {
                     Text(
@@ -89,12 +87,6 @@ fun MoreScreen(vm: TripViewModel) {
                 }
             }
         }
-
-        Text(
-            "备份 · 节奏设置 · 更多设置（后续版本逐步上线）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 
     tripToDelete?.let { trip ->
@@ -143,15 +135,13 @@ private fun AiSettingsCard(context: Context) {
         saved = false
     }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+    GroupCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI 生成设置", style = MaterialTheme.typography.titleMedium)
             Text(
-                "填写 DeepSeek 的 API Key，即可在「AI 规划」页一键自动生成行程。Key 只保存在本机，不会上传。",
+                "填 DeepSeek 的 API Key 即可用 AI 规划。Key 只存在本机。",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("服务商", style = MaterialTheme.typography.labelMedium)
             FlowRow(
@@ -241,14 +231,14 @@ private fun AiSettingsCard(context: Context) {
                     )
                 }
             }
-            Button(
+            PrimaryButton(
+                text = "保存",
                 onClick = {
                     AiSettings.save(context, AiSettings.providers[providerIndex].name, baseUrl, model, apiKey)
                     saved = true
                 },
-                modifier = Modifier.fillMaxWidth(),
                 enabled = apiKey.isNotBlank(),
-            ) { Text("保存") }
+            )
             if (saved) {
                 Text(
                     "✅ 已保存（仅存在本机）",
