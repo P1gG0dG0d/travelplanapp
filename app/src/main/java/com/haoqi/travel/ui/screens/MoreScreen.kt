@@ -119,16 +119,18 @@ private fun AiSettingsCard(context: Context) {
         )
     }
     var baseUrl by remember { mutableStateOf(config.baseUrl) }
+    var model by remember { mutableStateOf(config.model) }
     var apiKey by remember { mutableStateOf(config.apiKey) }
     var showKey by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var webSearch by remember { mutableStateOf(AiSettings.isWebSearchEnabled(context)) }
 
-    // 切换服务商：地址用该服务商默认值，Key 读该服务商自己保存的（互不串）
+    // 切换服务商：地址/模型用该服务商默认值，Key 读该服务商自己保存的（互不串）
     fun selectProvider(i: Int) {
         providerIndex = i
         val p = AiSettings.providers[i]
         baseUrl = p.baseUrl
+        model = p.model
         apiKey = AiSettings.loadKey(context, p.name)
         saved = false
     }
@@ -137,7 +139,7 @@ private fun AiSettingsCard(context: Context) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI 生成设置", style = MaterialTheme.typography.titleMedium)
             Text(
-                "填 DeepSeek 的 API Key 即可用 AI 规划。Key 只存在本机。",
+                "填火山方舟的 API Key 即可用 AI 规划。Key 只存在本机。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -184,10 +186,20 @@ private fun AiSettingsCard(context: Context) {
                 label = { Text("接口地址") },
                 singleLine = true,
             )
+            KeyboardGuardTextField(
+                value = model,
+                onValueChange = {
+                    model = it
+                    saved = false
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("模型名称 / 推理接入点") },
+                singleLine = true,
+            )
             PrimaryButton(
                 text = "保存",
                 onClick = {
-                    AiSettings.save(context, AiSettings.providers[providerIndex].name, baseUrl, apiKey)
+                    AiSettings.save(context, AiSettings.providers[providerIndex].name, baseUrl, model, apiKey)
                     saved = true
                 },
                 enabled = apiKey.isNotBlank(),
@@ -221,7 +233,8 @@ private fun AiSettingsCard(context: Context) {
                 )
             }
             Text(
-                "申请入口：platform.deepseek.com（API Keys → 创建 Key）",
+                "申请：火山方舟控制台（console.volcengine.com/ark）创建 API Key，并开通「联网内容插件」；" +
+                    "若提示模型不存在，把方舟里创建的「推理接入点」ep-xxx 填入模型框",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

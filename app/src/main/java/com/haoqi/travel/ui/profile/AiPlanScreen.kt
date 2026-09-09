@@ -86,6 +86,7 @@ private val tierOptions = listOf("经济型", "中端", "高端")
 private val staminaOptions = listOf("能走", "一般", "需少走多休息")
 private val transportOptions = listOf("地铁优先", "打车", "公交", "步行")
 private val paceOptions = listOf("紧凑型", "普通型", "悠闲型")
+private val classOptions = listOf("经济", "普通", "商务")
 
 @Composable
 fun AiPlanScreen(vm: TripViewModel, onGoToItinerary: () -> Unit) {
@@ -159,7 +160,7 @@ private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewMo
                     onValueChange = { vm.updatePlanForm(homeCity = it) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("出发地") },
-                    placeholder = { Text("如：济南（可留空）") },
+                    placeholder = { Text("如：南京（可留空）") },
                     singleLine = true,
                 )
 
@@ -174,10 +175,19 @@ private fun FormPanel(plan: AiPlanState, profile: ProfileEntity?, vm: TripViewMo
                         },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("第 ${i + 1} 天") },
-                        placeholder = { Text(if (i == 0) "如：济南" else "留空则沿用前一天") },
+                        placeholder = { Text(if (i == 0) "如：南京" else "留空则沿用前一天") },
                         singleLine = true,
                     )
                 }
+
+                KeyboardGuardTextField(
+                    value = plan.note,
+                    onValueChange = { vm.updatePlanForm(note = it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("特殊要求（可选）") },
+                    placeholder = { Text("如：不吃海鲜、带老人、想看日出…") },
+                    maxLines = 3,
+                )
 
                 if (plan.running) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -247,12 +257,13 @@ private fun PreferenceCard(profile: ProfileEntity?, vm: TripViewModel, context: 
                     PrefField(draft.mealBudget, { draft = draft.copy(mealBudget = it) }, "每餐人均（如 60 元）")
                     PrefField(draft.hotelBudget, { draft = draft.copy(hotelBudget = it) }, "酒店每晚（如 400 元）")
                     OptionChips("酒店档位", tierOptions, draft.hotelTier) { draft = draft.copy(hotelTier = it) }
-                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "酒店位置（如市中心 / 近地铁）")
+                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "想住哪个商圈/景点附近（选填，如：夫子庙商圈 / 玄武湖 / 某大学）")
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("需要含早餐", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Switch(checked = draft.hotelBreakfast, onCheckedChange = { draft = draft.copy(hotelBreakfast = it) })
                     }
                     OptionChips("出行方式", transportOptions, draft.transport) { draft = draft.copy(transport = it) }
+                    OptionChips("出行档次", classOptions, draft.transportClass) { draft = draft.copy(transportClass = it) }
                     OptionChips("体力", staminaOptions, draft.stamina) { draft = draft.copy(stamina = it) }
                     OptionChips("旅行节奏", paceOptions, draft.pace) { draft = draft.copy(pace = it) }
                     PrefField(draft.companion, { draft = draft.copy(companion = it) }, "同行（独自 / 情侣 / 带老人小孩）")
@@ -503,16 +514,24 @@ private fun CurrentPlanCard(plan: AiPlanState) {
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 6.dp),
                     )
-                    day.items.forEach { p ->
-                        val suffix = if (p.type == PlaceType.HOTEL) {
-                            when {
-                                day.dayIndex == 1 -> "（入住）"
-                                day.dayIndex == doc.days.size -> "（退房）"
-                                else -> "（续住）"
-                            }
-                        } else ""
-                        Text("· ${placeTypeLabel(p.type)} ${p.name}$suffix", style = MaterialTheme.typography.bodySmall)
+                    // 每天的行程只列景点/饭店，酒店单拎到末尾，别污染行程
+                    day.items.filter { it.type != PlaceType.HOTEL }.forEach { p ->
+                        Text("· ${placeTypeLabel(p.type)} ${p.name}", style = MaterialTheme.typography.bodySmall)
                     }
+                }
+                // 酒店单拎出来（按名称去重）
+                val hotelNames = doc.days.flatMap { it.items }
+                    .filter { it.type == PlaceType.HOTEL }
+                    .map { it.name.trim() }
+                    .distinct()
+                if (hotelNames.isNotEmpty()) {
+                    Text(
+                        "酒店",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    hotelNames.forEach { Text("· $it", style = MaterialTheme.typography.bodySmall) }
                 }
                 if (doc.tickets.isNotEmpty()) {
                     Text(

@@ -8,6 +8,7 @@ import com.haoqi.travel.data.importer.MdDocument
 import com.haoqi.travel.data.importer.MdExporter
 import com.haoqi.travel.data.importer.MdParser
 import com.haoqi.travel.data.importer.MdPlace
+import com.haoqi.travel.data.importer.MdTicket
 import com.haoqi.travel.data.local.entity.PlaceEntity
 import com.haoqi.travel.data.local.entity.PlaceType
 import com.haoqi.travel.data.local.entity.PlanItemEntity
@@ -21,15 +22,18 @@ import com.haoqi.travel.data.remote.AiConfig
 import com.haoqi.travel.data.remote.AiSettings
 import com.haoqi.travel.data.remote.GeocodeHelper
 import com.haoqi.travel.data.reminder.ReminderManager
+import com.haoqi.travel.data.reminder.ReminderReceiver
 import com.haoqi.travel.data.repository.TravelRepository
 import com.haoqi.travel.ui.profile.PlanSpec
 import com.haoqi.travel.ui.profile.autoTripName
 import com.haoqi.travel.ui.profile.buildPlanBrief
 import com.haoqi.travel.ui.profile.buildRefinePrompt
+import com.haoqi.travel.ui.profile.buildSearchBrief
 import com.haoqi.travel.ui.profile.resolveCities
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -66,6 +70,10 @@ data class AiPlanState(
     val error: String? = null,
     /** 联网搜索的状态提示（成功/回退原因），空串表示不显示 */
     val searchNote: String = "",
+    /** 联网核实到的真实车票/酒店事实清单（Markdown），用于展示 + 第二步规划引用 */
+    val facts: String = "",
+    /** 表单里的特殊要求备注 */
+    val note: String = "",
 )
 
 class TripViewModel(private val repo: TravelRepository) : ViewModel() {
@@ -289,6 +297,7 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
         days: Int? = null,
         homeCity: String? = null,
         cities: List<String>? = null,
+        note: String? = null,
     ) {
         val s = _planState.value
         val d = days ?: s.days
@@ -301,6 +310,7 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
             days = d,
             homeCity = homeCity ?: s.homeCity,
             cities = c,
+            note = note ?: s.note,
             error = null,
         )
     }
@@ -313,7 +323,7 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
             return
         }
         val webSearch = AiSettings.load(context).webSearch
-        val spec = PlanSpec(s.startDate, s.days, s.homeCity, s.cities)
+        val spec = PlanSpec(s.startDate, s.days, s.homeCity, s.cities, s.note)
         if (resolveCities(spec).all { it.isBlank() }) {
             _planState.value = s.copy(error = "请至少填写一天的旅行城市，AI 才知道去哪儿规划")
             return
@@ -328,40 +338,77 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
                 messages = listOf(ChatMsg(fromUser = false, text = "正在为你规划行程，联网搜索可能稍慢，请稍候…")),
             )
             try {
-                val md = callAi(context, buildPlanBrief(spec, profile.value, webSearch), webSearch)
-                var doc = MdParser.parse(md)
-                if (doc.days.none { it.items.isNotEmpty() }) {
-                    throw IllegalStateException("AI 没返回完整的每日行程（可能只回了车票/交通）。请点「重新规划」再试一次；如果一直这样，请把「查看原文 MD」的内容发给我")
-                }
-
-                // 联网搜索下，若发现有缺的交通段（去程/返程没生成），自动再请求一次补上（只补一次，避免拖太久）
-                var missing = missingLegs(spec, doc)
-                if (missing.isNotEmpty() && webSearch) {
-                    val fillPrompt = buildRefinePrompt(
-                        spec,
-                        profile.value,
-                        MdExporter.fromDocument(doc),
-                        "缺少这些交通段：" + missing.joinToString("、") { "${it.first}→${it.second}" } +
-                            "。请务必用 web_search 按「带完整日期」的关键词精确查询它们的真实航班/车次并补进「# 车票」；" +
-                            "查不到就补进「# 交通建议」，其余行程保持不变。",
-                        withTickets = true,
+                val config = AiSettings.load(context)
+                // 两步法：①联网收集真实车票+酒店事实；②规划引用事实（未联网则事实为空，酒店待定/交通建议）
+                var facts = ""
+                var factsFailReason: String? = null
+                if (webSearch) {
+                    _planState.value = _planState.value.copy(
+                        searchNote = "正在联网核实车票和酒店（首次约 1～3 分钟，请耐心等待）…",
                     )
-                    runCatching { callAi(context, fillPrompt, webSearch = true) }.getOrNull()?.let { md2 ->
-                        val doc2 = MdParser.parse(md2)
-                        if (doc2.days.any { it.items.isNotEmpty() }) {
-                            doc = doc2
-                            missing = missingLegs(spec, doc)
+                    // 联网核实：失败自动重试一次；仍失败就降级普通模式（车票只给建议、酒店待定，绝不编造），
+                    // 但要把失败原因留下来告诉用户，而不是静默吞掉
+                    val attempt: suspend () -> String = {
+                        AiClient.chatWithWebSearch(
+                            config,
+                            buildSearchBrief(spec, profile.value),
+                            readTimeoutMs = 170_000,
+                            factsMode = true,
+                        )
+                    }
+                    var failMsg: String? = null
+                    val result = withTimeoutOrNull(200_000) {
+                        try {
+                            attempt()
+                        } catch (e1: java.io.IOException) {
+                            try {
+                                attempt()
+                            } catch (e2: java.io.IOException) {
+                                failMsg = step1FriendlyError(e2)
+                                null
+                            }
                         }
                     }
+                    facts = result ?: ""
+                    factsFailReason = when {
+                        result != null -> null
+                        failMsg != null -> failMsg
+                        else -> "超过 3 分钟未返回（可能网络慢或服务繁忙）"
+                    }
                 }
-
+                _planState.value = _planState.value.copy(
+                    searchNote = when {
+                        facts.isNotBlank() -> "已联网核实到真实车票/酒店，正在生成行程…"
+                        webSearch -> "联网核实失败（$factsFailReason），已改用普通模式：车票只给建议、酒店待定"
+                        else -> "未联网，正在生成行程…"
+                    },
+                )
+                val md = chatWithOneRetry(config, buildPlanBrief(spec, profile.value, facts))
+                var doc = MdParser.parse(md)
+                if (doc.days.none { it.items.isNotEmpty() }) {
+                    throw IllegalStateException("AI 没返回完整的每日行程。请点「重新规划」再试一次；如果一直这样，请把「查看原文 MD」的内容发给我")
+                }
+                // 代码级兜底：把规划结果里「联网清单中没有的」车次降级为建议、酒店改为待定，杜绝幻觉
+                doc = filterHallucinations(doc, facts)
+                val missing = missingLegs(spec, doc)
                 _planState.value = _planState.value.copy(
                     phase = PlanPhase.CHAT,
                     running = false,
-                    // 用重排后的规范 MD 展示/改稿，AI 夹带的任何杂音都不会再出现
+                    searchNote = "",
                     currentMd = MdExporter.fromDocument(doc),
                     currentDoc = doc,
+                    facts = facts,
                     messages = listOf(ChatMsg(fromUser = false, text = "已为你生成行程初稿，看看是否满意，也可以继续提修改意见。")) +
+                        (factsFailReason?.let { r ->
+                            listOf(
+                                ChatMsg(
+                                    fromUser = false,
+                                    text = "⚠️ 本次没能联网核实真实车票/酒店（原因：$r）。结果里车票只是「交通建议」、酒店为「待定」，没有编造数据。" +
+                                        "想拿到真实车票，请到「更多 → AI 生成设置」检查：①火山方舟已开通「联网内容插件」；" +
+                                        "②模型框填的是推理接入点 ep-xxx；③网络正常，然后点「重新规划」。",
+                                ),
+                            )
+                        }.orEmpty()) +
                         missing.takeIf { it.isNotEmpty() }?.let { list ->
                             listOf(
                                 ChatMsg(
@@ -372,6 +419,7 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
                             )
                         }.orEmpty(),
                 )
+                ReminderReceiver.notifyPlanDone(context.applicationContext, "行程已生成，打开看看吧")
             } catch (e: Exception) {
                 _planState.value = _planState.value.copy(running = false, error = e.message ?: "生成失败")
             }
@@ -399,12 +447,53 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
         }
     }
 
+    /** 从事实清单里提取「合法车次号集合」（G/D/C/K/T/Z/Y/L + 数字） */
+    private fun extractRealTrainNos(facts: String): Set<String> {
+        if (facts.isBlank()) return emptySet()
+        return Regex("""[GDCKTZYL]\d{1,5}""").findAll(facts).map { it.value }.toSet()
+    }
+
+    /** 从事实清单里提取「合法酒店名集合」（- 酒店: xxx 的名称部分） */
+    private fun extractRealHotelNames(facts: String): Set<String> {
+        if (facts.isBlank()) return emptySet()
+        return Regex("""- 酒店\s*[:：]\s*([^|]+)""").findAll(facts)
+            .map { it.groupValues[1].trim() }
+            .filter { it.isNotBlank() && it != "待定" }
+            .toSet()
+    }
+
+    /**
+     * 代码级防幻觉兜底：
+     * - 具体车票的车次号若不在联网核实清单里 → 降级为「交通建议」（清空车次号），绝不展示编造的车次；
+     * - 酒店名若不在清单里 → 改成「待定」。
+     * 只在清单非空（确实联网核实过）时生效；未联网时本来就只有建议/待定。
+     */
+    private fun filterHallucinations(doc: MdDocument, facts: String): MdDocument {
+        if (facts.isBlank()) return doc
+        val realNos = extractRealTrainNos(facts)
+        val realHotels = extractRealHotelNames(facts)
+
+        val tickets = doc.tickets.map { t ->
+            if (!t.isSuggestion && t.trainNo.isNotBlank() && realNos.isNotEmpty() && t.trainNo !in realNos) {
+                t.copy(trainNo = "", isSuggestion = true, note = "车次未联网核实，请自行查询")
+            } else t
+        }
+        val days = doc.days.map { day ->
+            day.copy(items = day.items.map { p ->
+                if (p.type == PlaceType.HOTEL && realHotels.isNotEmpty() && p.name !in realHotels && p.name != "待定") {
+                    p.copy(name = "待定（自行预订）", note = "")
+                } else p
+            })
+        }
+        return doc.copy(days = days, tickets = tickets)
+    }
+
     fun sendRefine(context: Context, text: String) {
         val s = _planState.value
         val instruction = text.trim()
         if (s.running || instruction.isBlank() || s.currentMd.isBlank()) return
         val webSearch = AiSettings.load(context).webSearch
-        val spec = PlanSpec(s.startDate, s.days, s.homeCity, s.cities)
+        val spec = PlanSpec(s.startDate, s.days, s.homeCity, s.cities, s.note)
         val md = s.currentMd
         viewModelScope.launch {
             _planState.value = _planState.value.copy(
@@ -414,10 +503,12 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
                 messages = appendMsg(_planState.value.messages, ChatMsg(fromUser = true, text = instruction)),
             )
             try {
-                val newMd = callAi(context, buildRefinePrompt(spec, profile.value, md, instruction, webSearch), webSearch)
+                val config = AiSettings.load(context)
+                // 改稿复用第一次联网核实到的事实清单，不重新联网（快）
+                val newMd = chatWithOneRetry(config, buildRefinePrompt(spec, profile.value, md, instruction, s.facts))
                 val doc = MdParser.parse(newMd)
                 if (doc.days.none { it.items.isNotEmpty() }) {
-                    throw IllegalStateException("AI 没返回完整的每日行程（可能只回了车票/交通）。请再发一次修改意见，或点「重新规划」")
+                    throw IllegalStateException("AI 没返回完整的每日行程。请再发一次修改意见，或点「重新规划」")
                 }
                 _planState.value = _planState.value.copy(
                     running = false,
@@ -436,42 +527,20 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
     }
 
     /**
-     * 调 AI 的统一入口。
-     * 开了「联网搜索」就先试 DeepSeek 的 Responses API（自带 web_search 工具）；
-     * 这是实验功能：报错或超过 150 秒超时，都自动退回普通的 /chat/completions，
-     * 保证生成不会中断，同时把原因写进 searchNote 让你在界面上看到。
+     * 把第一步「联网核实」的异常翻译成用户能看懂的提示，直接显示在聊天里。
      */
-    private suspend fun callAi(context: Context, prompt: String, webSearch: Boolean): String {
-        val config = AiSettings.load(context)
-        if (!webSearch) {
-            _planState.value = _planState.value.copy(searchNote = "")
-            return chatWithOneRetry(config, prompt)
+    private fun step1FriendlyError(e: Exception): String {
+        val m = e.message.orEmpty()
+        return when {
+            m.contains("timed out", ignoreCase = true) || m.contains("timeout", ignoreCase = true) ->
+                "接口读超时（服务端长时间没返回结果）"
+            m.contains("ModelNotOpen") || m.contains("未开通该模型") ->
+                "方舟提示：该模型未开通（去方舟控制台「开通管理」开通模型，或改用已创建的推理接入点 ep-xxx）"
+            m.contains("plugin", ignoreCase = true) || m.contains("插件") ->
+                "方舟提示：联网内容插件未开通或该模型不支持联网（去方舟控制台「开通管理 → 插件」开通「联网内容插件」）"
+            m.contains("404") || m.contains("400") || m.contains("401") || m.contains("403") -> m.take(200)
+            else -> m.takeIf { it.isNotBlank() } ?: "网络错误"
         }
-        // 联网搜索有时会卡在搜索上：先最多等 90 秒，超时/失败就取消这次、重试一次联网搜索；
-        // 第二次仍不行才退回普通模式（用户反馈过“第一次失败、重试一次就成功”）
-        suspend fun tryWebSearch(): String? = withTimeoutOrNull(90_000) {
-            try {
-                AiClient.chatWithWebSearch(config, prompt)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                null
-            }
-        }
-        val first = tryWebSearch()
-        if (first != null) {
-            _planState.value = _planState.value.copy(searchNote = "已用联网搜索模式生成（车次/时刻仍请以 12306 为准）")
-            return first
-        }
-        val second = tryWebSearch()
-        if (second != null) {
-            _planState.value = _planState.value.copy(searchNote = "联网搜索第一次超时，重试后成功（车次/时刻请以 12306 为准）")
-            return second
-        }
-        _planState.value = _planState.value.copy(
-            searchNote = "联网搜索两次都没成功，已自动改用普通模式生成",
-        )
-        return chatWithOneRetry(config, prompt)
     }
 
     /**

@@ -19,4 +19,6 @@ data class ProfileEntity(
     val companion: String = "",
     val homeCity: String = "",
     val pace: String = "",
+    /** 出行档次：经济 / 普通 / 商务（影响车票舱位推荐） */
+    val transportClass: String = "",
 )

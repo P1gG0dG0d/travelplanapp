@@ -33,6 +33,11 @@ class ReminderReceiver : BroadcastReceiver() {
             )
         }
 
+        /** AI 规划完成时的即时通知（后台生成也能收到） */
+        fun notifyPlanDone(context: Context, text: String) {
+            showNotification(context, "好奇旅行", text)
+        }
+
         private fun showNotification(context: Context, title: String, message: String) {
             ensureChannel(context)
             if (Build.VERSION.SDK_INT >= 33 &&

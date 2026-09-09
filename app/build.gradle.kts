@@ -22,12 +22,16 @@ android {
         applicationId = "com.haoqi.travel"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.0"
         manifestPlaceholders["AMAP_KEY"] = amapKey
     }
 
     buildTypes {
+        debug {
+            // 自用：调试版也关掉 debuggable 标记，避免系统弹「可调试应用/16KB」兼容性警告
+            isDebuggable = false
+        }
         release {
             isMinifyEnabled = false
             // 个人自用：正式版也用调试密钥签名，行为与调试版一致、数据互通；

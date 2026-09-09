@@ -369,6 +369,14 @@ private fun PlaceRow(
                     Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BookingInfo(place)
+                // 酒店导入时地理编码失败（没有坐标）→ 很可能是编造的，明确警告用户
+                if (place.type == PlaceType.HOTEL && place.latitude == null) {
+                    Text(
+                        "⚠️ 地图上定位不到这家酒店，可能不存在或已停业，预订前请自行核实",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 NavigateButton(place, onLocate = onLocate, locating = locating)

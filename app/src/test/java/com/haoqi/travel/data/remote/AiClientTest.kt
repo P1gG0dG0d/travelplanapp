@@ -172,6 +172,35 @@ class AiClientTest {
     }
 
     @Test
+    fun `responses answer picks the most complete message when itinerary is split`() {
+        // 模型把回答拆成多条 message：第一条只有第1天（搜索中间结论），后面才是完整两天行程 + 车票
+        val partial = JSONObject()
+            .put("type", "message")
+            .put("content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "# 第1天 · 西安\n## 上午\n- 景点: 兵马俑")))
+        val webCall = JSONObject().put("type", "web_search_call")
+        val full = JSONObject()
+            .put("type", "message")
+            .put(
+                "content",
+                JSONArray().put(
+                    JSONObject().put(
+                        "type", "output_text",
+                    ).put("text", "# 第1天 · 西安\n## 上午\n- 景点: 兵马俑\n# 第2天 · 西安\n## 上午\n- 景点: 大雁塔\n# 车票\n- 车次: G26 | 北京西→西安北 | 2026-05-01 08:00 | 二等座"),
+                ),
+            )
+        val closing = JSONObject()
+            .put("type", "message")
+            .put("content", JSONArray().put(JSONObject().put("type", "output_text").put("text", "以上就是全部安排，祝旅途愉快！")))
+        val body = JSONObject().put("output", JSONArray().put(partial).put(webCall).put(full).put(closing))
+
+        val answer = AiClient.extractResponsesAnswer(body.toString())
+        // 评分制应选中“两天 + 车票”最完整的那条，而不是最后的客套或第一段碎片
+        assertTrue(answer.contains("大雁塔"))
+        assertTrue(answer.contains("G26"))
+        assertFalse(answer.contains("祝旅途愉快"))
+    }
+
+    @Test
     fun `pure narration without itinerary markers is rejected`() {
         // 整段既没有 第N天 也没有任何行程特征 → 是思考/说明文字，必须报错而不是原样返回
         try {

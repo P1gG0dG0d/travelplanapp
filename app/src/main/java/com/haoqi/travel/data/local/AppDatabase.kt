@@ -25,7 +25,7 @@ import com.haoqi.travel.data.local.entity.TripEntity
         TicketEntity::class,
         ProfileEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,7 +46,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "haoqi_travel.db",
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
@@ -76,6 +76,13 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE places ADD COLUMN bookingInfo TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** v7：偏好表支持「出行档次」（经济/普通/商务） */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profile ADD COLUMN transportClass TEXT NOT NULL DEFAULT ''")
             }
         }
     }

@@ -146,9 +146,11 @@ object MdParser {
         val merged = days
             .groupBy { it.dayIndex }
             .map { (idx, list) ->
-                // 同一天里名称相同的景点/饭店去重（AI 偶尔会重复推荐同一个地点）
-                val deduped = list.flatMap { it.items }
-                    .distinctBy { p -> "${p.type}:${p.name.trim()}" }
+                // 同一天里名称相同/高度相似的地点去重（AI 常把同一地点写多遍、加“续住/夜景/备选”等）
+                val deduped = mutableListOf<MdPlace>()
+                list.flatMap { it.items }.forEach { p ->
+                    if (deduped.none { isSamePlace(it, p) }) deduped.add(p)
+                }
                 MdDay(idx, list.firstOrNull()?.city.orEmpty(), deduped)
             }
             .sortedBy { it.dayIndex }
@@ -180,6 +182,25 @@ object MdParser {
     /** 起终点相同（如“武汉→武汉”“机场→市区”）这类自环，基本是模型噪声，去掉 */
     private fun isSelfLoop(t: MdTicket): Boolean =
         t.fromStation.isNotBlank() && t.toStation.isNotBlank() && stationMatch(t.fromStation, t.toStation)
+
+    /** 两个地点是否“同一处”：类型相同，且名称规范化后相等或互相包含 */
+    private fun isSamePlace(a: MdPlace, b: MdPlace): Boolean {
+        if (a.type != b.type) return false
+        val x = normalizedName(a.name)
+        val y = normalizedName(b.name)
+        if (x.isEmpty() || y.isEmpty()) return x == y
+        return x == y || x.contains(y) || y.contains(x)
+    }
+
+    /** 名称规范化：去掉尾部括号内容（续住/夜景/店址等），只保留字母/数字/汉字 */
+    private fun normalizedName(name: String): String {
+        var s = name.trim()
+        while (true) {
+            val m = Regex("""[（(][^（）()]*[)）]\s*$""").find(s) ?: break
+            s = s.removeRange(m.range).trim()
+        }
+        return s.filter { it.isLetterOrDigit() }
+    }
 
     /** 排序键：没解析出时间的排最后，其余按出发时间 */
     private fun departureKey(t: MdTicket): Long =
