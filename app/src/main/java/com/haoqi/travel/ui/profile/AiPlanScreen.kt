@@ -82,7 +82,6 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 private val spiceOptions = listOf("不吃辣", "微辣", "中辣", "重辣")
-private val tierOptions = listOf("经济型", "中端", "高端")
 private val staminaOptions = listOf("能走", "一般", "需少走多休息")
 private val transportOptions = listOf("地铁优先", "打车", "公交", "步行")
 private val paceOptions = listOf("紧凑型", "普通型", "悠闲型")
@@ -256,8 +255,7 @@ private fun PreferenceCard(profile: ProfileEntity?, vm: TripViewModel, context: 
                     PrefField(draft.cuisines, { draft = draft.copy(cuisines = it) }, "偏爱菜系")
                     PrefField(draft.mealBudget, { draft = draft.copy(mealBudget = it) }, "每餐人均（如 60 元）")
                     PrefField(draft.hotelBudget, { draft = draft.copy(hotelBudget = it) }, "酒店每晚（如 400 元）")
-                    OptionChips("酒店档位", tierOptions, draft.hotelTier) { draft = draft.copy(hotelTier = it) }
-                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "想住哪个商圈/景点附近（选填，如：夫子庙商圈 / 玄武湖 / 某大学）")
+                    PrefField(draft.hotelLocation, { draft = draft.copy(hotelLocation = it) }, "酒店位置，如圆明园")
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("需要含早餐", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Switch(checked = draft.hotelBreakfast, onCheckedChange = { draft = draft.copy(hotelBreakfast = it) })

@@ -80,6 +80,7 @@ fun ItineraryScreen(vm: TripViewModel) {
     var adding by remember { mutableStateOf<PlaceEntity?>(null) }
     var addingNew by remember { mutableStateOf(false) }
     var locatingId by remember { mutableStateOf<Long?>(null) }
+    var hotelToDelete by remember { mutableStateOf<PlaceEntity?>(null) }
 
     // 手动给没坐标的地点重新搜索定位
     val locate: (PlaceEntity) -> Unit = { p ->
@@ -189,6 +190,7 @@ fun ItineraryScreen(vm: TripViewModel) {
                     PlaceRow(
                         h,
                         action = null,
+                        onDelete = { hotelToDelete = h },
                         onLocate = { locate(h) },
                         locating = h.id == locatingId,
                         modifier = Modifier.animateItem(),
@@ -238,6 +240,26 @@ fun ItineraryScreen(vm: TripViewModel) {
             onConfirm = { day, slot ->
                 vm.addPlaceToPlan(p.id, day, slot)
                 adding = null
+            },
+        )
+    }
+
+    hotelToDelete?.let { h ->
+        AnimatedAlertDialog(
+            onDismissRequest = { hotelToDelete = null },
+            title = { Text("移除酒店") },
+            text = { Text("确定从这次旅行中移除「${h.name}」吗？移除后所有天数的酒店栏都不会再显示。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.deletePlace(context.applicationContext, h)
+                        hotelToDelete = null
+                        Toast.makeText(context, "已移除「${h.name}」", Toast.LENGTH_SHORT).show()
+                    },
+                ) { Text("移除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { hotelToDelete = null }) { Text("取消") }
             },
         )
     }
@@ -353,6 +375,7 @@ private fun PlaceRow(
     onLocate: () -> Unit,
     locating: Boolean,
     modifier: Modifier = Modifier,
+    onDelete: (() -> Unit)? = null,
 ) {
     GroupCard(modifier = modifier) {
         Row(
@@ -382,6 +405,11 @@ private fun PlaceRow(
                 NavigateButton(place, onLocate = onLocate, locating = locating)
                 if (action != null) {
                     TextButton(onClick = action) { Text("加入行程", style = MaterialTheme.typography.labelMedium) }
+                }
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) {
+                        Text("移除", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

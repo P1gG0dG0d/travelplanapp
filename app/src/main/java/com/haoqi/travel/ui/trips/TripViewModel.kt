@@ -180,6 +180,18 @@ class TripViewModel(private val repo: TravelRepository) : ViewModel() {
         }
     }
 
+    /** 删除某个地点（行程页「移除」酒店等用），同时取消其可能存在的预约提醒 */
+    fun deletePlace(context: Context, place: PlaceEntity) {
+        viewModelScope.launch {
+            try {
+                ReminderManager.cancelReservation(context, place)
+            } catch (_: Exception) {
+                // 没排过提醒也不影响删除
+            }
+            repo.deletePlace(place)
+        }
+    }
+
     // ---- 车票 ----
     fun addTicket(
         context: Context,

@@ -31,9 +31,6 @@ fun autoTripName(resolvedCities: List<String>, days: Int): String {
 private fun hotelBudgetOf(profile: ProfileEntity?): String =
     profile?.hotelBudget.orEmpty().trim().ifBlank { "不限" }
 
-private fun hotelTierOf(profile: ProfileEntity?): String =
-    profile?.hotelTier.orEmpty().trim().ifBlank { "未填（预算内优先经济连锁酒店）" }
-
 /** 用户希望住的位置（商圈/景点/学校等）；没填返回空串 = 自动找近地铁+市中心 */
 private fun hotelAreaOf(profile: ProfileEntity?): String =
     profile?.hotelLocation.orEmpty().trim()
@@ -59,7 +56,6 @@ fun buildSearchBrief(spec: PlanSpec, profile: ProfileEntity?): String {
 - 日期：${spec.startDate}，共 ${spec.days} 天
 - 每天城市：$citySummary
 - 酒店每晚预算：$budget
-- 酒店档位偏好：${hotelTierOf(profile)}
 - 酒店位置要求：${hotelAreaOf(profile).ifBlank { "未指定（默认找近地铁、离市中心近的）" }}
 - 出行档次：$transportClass
 - 用户特殊要求：${spec.note.trim().ifBlank { "无" }}
@@ -76,7 +72,7 @@ fun buildSearchBrief(spec: PlanSpec, profile: ProfileEntity?): String {
 - **同一城市连续多天只住同一家**（只查一家，注明连住 N 晚）；只有换城市才查新的一家。
 - **位置**：用户指定了位置（见上方「酒店位置要求」）就**只找那一带**（该商圈/景点/大学附近）的酒店，关键词用「位置 + 酒店 标准间」；没指定就默认找**近地铁、离市中心近、条件好（评分高）**的，**绝不要为了便宜推荐郊区/远郊的酒店**。
 - **预算**：房价在预算内**尽量往上限靠**（如预算 200 元就找 160～200 元的市区连锁标准间，位置好值得把预算花足）；**预算 ≥100 元时不要推荐青旅/床位**（如 30 元青旅，远低于预算的不算符合预算），只有预算 <80 元或用户写明「越省越好」才考虑青旅。
-- 档位参考：经济=汉庭/如家/7天/锦江之星/尚客优/格林豪泰；中端=全季/亚朵/维也纳；高端=四五星级。优先评分高、离地铁口近的。
+- 档位参考：优先经济连锁（汉庭/如家/7天/锦江之星/尚客优/格林豪泰 等），评分高、离地铁口近的优先。
 - 写真实店名+地址+房价+是否营业：
   `- 酒店: 锦江之星(大明湖店) | 地址: xx区xx路 | 房价: 186元 | 营业中`
 - 目标位置实在没有符合预算且营业中的，写：`- 酒店: 待定`
@@ -156,7 +152,7 @@ $facts
 
 ## 【我的个人偏好】
 - 口味：辣度 ${profile?.spiceLevel.orEmpty().ifBlank { "不限" }}；忌口/过敏 ${profile?.avoidFood.orEmpty().ifBlank { "无" }}；偏爱菜系 ${profile?.cuisines.orEmpty().ifBlank { "不限" }}；每餐人均预算 ${profile?.mealBudget.orEmpty().ifBlank { "不限" }}
-- 酒店：每晚预算 ${hotelBudgetOf(profile)}；档位 ${profile?.hotelTier.orEmpty().ifBlank { "不限" }}；位置偏好 ${profile?.hotelLocation.orEmpty().ifBlank { "不限" }}；早餐 ${if (profile?.hotelBreakfast == true) "需要" else "不限"}
+- 酒店：每晚预算 ${hotelBudgetOf(profile)}；位置偏好 ${profile?.hotelLocation.orEmpty().ifBlank { "不限（近地铁/市中心）" }}；早餐 ${if (profile?.hotelBreakfast == true) "需要" else "不限"}
 - 出行：市内交通 ${profile?.transport.orEmpty().ifBlank { "不限" }}；体力 ${profile?.stamina.orEmpty().ifBlank { "不限" }}；同行 ${profile?.companion.orEmpty().ifBlank { "独自" }}；**出行档次 ${profile?.transportClass.orEmpty().ifBlank { "普通" }}**（经济=绿皮火车/硬座；普通=高铁二等座/飞机经济舱；商务=高铁一等座/商务座或飞机头等舱）
 
 ## 【旅行信息】
